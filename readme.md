@@ -51,7 +51,8 @@ jk.syoboi( main.programOf("jk1"     , sy.dt(2020,1,1), 30) ).server
 jk.syoboi( main.programOf(1         , sy.dt(2020,1,1), 30) ).server
 # option
 jk.dt2Log("jk1", sy.dt(2020,1,1), sy.td(minutes= 30))
-(main.jkM.CmtsIter or jk.getLog)("jk1", 1577804400, 1577804400+ 60*30)
+jk.getLog("jk1", 1577804400, 1577804400+ 60*30)
+main.jkM.CmtsIter(jk, "jk1", 1577804400, 1577804400+ 60*30)
 ```
 これらは いずれも同じ CmtsIter オブジェクトを返す、はず (NHK, 2020/1/1 0時から 30分間)
 

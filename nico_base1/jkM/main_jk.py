@@ -137,7 +137,7 @@ class SyoboiCmts:
 		server= cmtsIter
 		self.__dict__.update(locals())
 
-	def save(self, directory, sink: _Sink= None, elemMapper= None) -> None:
+	def save(self, directory, sink: _Sink= None, elemMapper= None) -> type(None):
 		"""
 		elemMapper: function(e: jkM.ET.Element) -> jkM.ET.Element
 		"""

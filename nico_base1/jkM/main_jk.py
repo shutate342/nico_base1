@@ -69,7 +69,31 @@ class _Sink:
 	def __call__(self, bytesFp, elems: jkM.ET.Element, epilogues= []):
 		return self.go(bytesFp, elems, epilogues)
 
+
 newDefaultSink= _Sink.of
+
+def programOf(chIdentifier: object, startDT: jkM.dt, min: int, **kwargs):
+	"""
+	ユーザーのための sy._Program 作成メソッド
+
+	chIdentifier: object
+		'TOKYO MX' or 'jk9' or 9
+	min[minutes]: int
+	"""
+	d= jkM.jkTable
+	it= chIdentifier
+	jkCh= f"jk{it}" if isinstance(it, int) else it
+	import re
+	if re.fullmatch(r"jk\d+", jkCh):
+		for t in d.items():
+			if t[1]!= jkCh: continue
+			it= t[0]; break
+	if not it in d:
+		raise ValueError(
+			f"'{chIdentifier}', and jkM.jkTable is incomplete."
+		)
+	return sy._Program(it , startDT, min, **kwargs)
+
 
 class SyoboiCmts:
 	"""

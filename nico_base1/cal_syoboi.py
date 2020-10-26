@@ -116,7 +116,35 @@ def bs2EitherProgs(parsed: bs4.BeautifulSoup) -> dict:
 	return it
 
 
-def parse(url_or_titleObj) -> [_Program]:
+def _formatProgramsURL(request):
+	it= request
+	if it.host!= 'cal.syoboi.jp':
+		raise ValueError(f"InvalidHost: {it.host}")
+	try:
+		tid= re.match(r"/tid/(\d+)", it.selector).group(1)
+	except Exception as e:
+		raise ValueError(f"InvalidURLPath: '{ it.selector }'")
+
+	return f"https://cal.syoboi.jp/tid/{ tid }/time"
+
+
+def parseC(content):
+	"""
+	Parse Content
+
+	str or bytes:
+		未パースのドキュメント
+	bs4.element.Tag:
+		ドキュメント
+	"""
+	raise NotImplementedError
+	import os
+	it= content
+	if isinstance(it, bs4.element.Tag):
+		return bs2EitherProgs(it)["rights"]
+
+
+def parse(url_or_titleObj, assertNotEmpty= True) -> [_Program]:
 	"""
 	cal.syoboi.jp のサイトから見たいタイトルを検索します。
 	すると タイトルの候補画面 or タイトル画面そのものに移動します。
@@ -124,15 +152,43 @@ def parse(url_or_titleObj) -> [_Program]:
 		それぞれ 候補から URL をコピー or ブラウザのページ URL をコピーしたもの
 
 	放送された番組の一覧を返します。
+
+	また url_or_titleObj に
+		.ローカル な Path Like Object やファイルパス文字列
+			この場合、各タイトルの項目のうち
+			「放送時間」のページデータを指定してください
+			このようにローカルファイルを利用すれば
+			サーバーの負荷を減らせます
+		.search 関数で取得した Title Object
+	も指定できます
 	"""
-	it= url_or_titleObj
-	it= (
-		isinstance(it, _req.Request) and it
-		or isinstance(it, str) and _req.Request(it)
-		or exec(f'raise TypeError(type(it))')
-	)
-	with _req.urlopen(it, timeout= _DEFAULT_TIMEOUT) as resp:
-		return _b2Progs(resp.read())
+	def go():
+		it= url_or_titleObj
+		try:
+			import os
+			if os.path.exists(it):
+				with open(it, "rb") as f: return _b2Progs(f.read())
+		except TypeError: pass
+		except Exception as e: raise e
+		it= (
+			isinstance(it, _req.Request) and (
+				hasattr(it, "_syoboi_title") and it
+				or _formatProgramsURL(it)
+			)
+			or isinstance(it, str)
+				and _formatProgramsURL(_req.Request(it))
+			or exec(f'raise TypeError(type(it))')
+		)
+		with _req.urlopen(it, timeout= _DEFAULT_TIMEOUT) as resp:
+			return _b2Progs(resp.read())
+
+	it= go()
+	if assertNotEmpty and not it:
+		raise AssertionError(
+			"NotFoundPrograms [sy.parse]: APIChanged or InvalidContentPath"
+		)
+	return it
+
 
 def _b2Progs(bytes_):
 	return bs2EitherProgs(bs4.BeautifulSoup(bytes_, "html.parser"))["rights"]

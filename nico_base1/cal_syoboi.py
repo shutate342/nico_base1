@@ -107,23 +107,26 @@ def bs2EitherProgs(parsed: bs4.BeautifulSoup) -> dict:
 	ret["rights"] -> [_Program]
 	ret["lefts"] -> [_ErrProgram]
 	"""
-	# tbody= parsed.select("table.progs > tbody")[0]
-	# programs= tbody.find_all(recursive= False)
-	programs= parsed.select("table.progs")[0].select("tr.past")
-	it= groupby(type, map(_Program.of, programs))
-	it["rights"]= it.pop(_Program, [])
-	it["lefts"]= it.pop(_ErrProgram, [])
-	return it
+	try:
+		# tbody= parsed.select("table.progs > tbody")[0]
+		# programs= tbody.find_all(recursive= False)
+		programs= parsed.select("table.progs")[0].select("tr.past")
+		it= groupby(type, map(_Program.of, programs))
+		it["rights"]= it.pop(_Program, [])
+		it["lefts"]= it.pop(_ErrProgram, [])
+		return it
+	except Exception as e:
+		raise RuntimeError("ParseError or APIChanged", e)
 
 
 def _formatProgramsURL(request):
 	it= request
 	if it.host!= 'cal.syoboi.jp':
-		raise ValueError(f"InvalidHost: {it.host}")
+		raise ValueError(f"InvalidHost: '{it.host}', expected 'cal.syoboi.jp'")
 	try:
 		tid= re.match(r"/tid/(\d+)", it.selector).group(1)
 	except Exception as e:
-		raise ValueError(f"InvalidURLPath: '{ it.selector }'")
+		raise ValueError(f"InvalidURLPath: '{ it.selector }', expected like '/tid/0001'")
 
 	return f"https://cal.syoboi.jp/tid/{ tid }/time"
 
@@ -144,24 +147,27 @@ def parse(url_or_titleObj, assertNotEmpty= True) -> [_Program]:
 			このようにローカルファイルを利用すれば
 			サーバーの負荷を減らせます
 		.search 関数で取得した Title Object
+		.Request Object
 	も指定できます
 	"""
 	def go():
 		it= url_or_titleObj
 		try:
-			import os
-			if os.path.exists(it):
+			if not isinstance(it, _req.Request):
+				it= _req.Request(it)
+		except Exception as parseErr:
+			try:
+				import os
 				with open(it, "rb") as f: return _b2Progs(f.read())
-		except TypeError: pass
-		except Exception as e: raise e
+			except Exception as e:
+				raise RuntimeError(
+					"Failed to parse URL or local file"
+					f"\nFormer: {parseErr}\nLatter: {e}"
+					"\nif Latter: Please reconfirm your local file content."
+				)
 		it= (
-			isinstance(it, _req.Request) and (
-				hasattr(it, "_syoboi_title") and it
-				or _formatProgramsURL(it)
-			)
-			or isinstance(it, str)
-				and _formatProgramsURL(_req.Request(it))
-			or exec(f'raise TypeError(type(it))')
+			it if hasattr(it, "_syoboi_title")
+			else _formatProgramsURL(it)
 		)
 		with _req.urlopen(it, timeout= _DEFAULT_TIMEOUT) as resp:
 			return _b2Progs(resp.read())

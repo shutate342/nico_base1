@@ -37,7 +37,7 @@ programs= sy.groupby(lambda e: e.getCount(None), title.programs)
 # select episode 12 broadcasted on 'TOKYO MX'
 program= sy.groupby(lambda e: e.chName, programs[12])["TOKYO MX"][0]
 
-# jk: nico_base1.jk.main._JKAPI
+# jk: main._JKAPI
 jk= main.loginJK("your-address@example.com", "your-password")
 
 # save comments as XML file

@@ -128,22 +128,6 @@ def _formatProgramsURL(request):
 	return f"https://cal.syoboi.jp/tid/{ tid }/time"
 
 
-def parseC(content):
-	"""
-	Parse Content
-
-	str or bytes:
-		未パースのドキュメント
-	bs4.element.Tag:
-		ドキュメント
-	"""
-	raise NotImplementedError
-	import os
-	it= content
-	if isinstance(it, bs4.element.Tag):
-		return bs2EitherProgs(it)["rights"]
-
-
 def parse(url_or_titleObj, assertNotEmpty= True) -> [_Program]:
 	"""
 	cal.syoboi.jp のサイトから見たいタイトルを検索します。

@@ -137,19 +137,30 @@ class SyoboiCmts:
 		server= cmtsIter
 		self.__dict__.update(locals())
 
-	def save(self, directory, sink: _Sink= None, elemMapper= None) -> type(None):
+	def saveAs(self, fullpath, sink: _Sink= None, elemMapper= None) -> type(None):
 		"""
+		save file as 'fullpath'
+
 		elemMapper: function(e: jkM.ET.Element) -> jkM.ET.Element
 		"""
-		dst= os.path.join(directory, self.filename)
+		dst= fullpath
 		if os.path.exists(dst):
-			raise OSError(dst)
+			raise FileExistsError(dst)
 		with open(dst, "wb") as f:
 			(sink or _Sink.of(b"\r\n"))(
 				f
 				, map(elemMapper or shiftFWer( jkM.vposdiffAt(self.prog.startDT) ), self.server)
 				, self.server.epilogues
 			)
+
+	def save(self, directory, *args, **kwargs) -> type(None):
+		"""
+		elemMapper: function(e: jkM.ET.Element) -> jkM.ET.Element
+		"""
+		return self.saveAs(
+			os.path.join(directory, self.filename)
+			, *args, **kwargs
+		)
 		
 	@property
 	def filename(self):

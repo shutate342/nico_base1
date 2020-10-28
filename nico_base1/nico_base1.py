@@ -64,26 +64,28 @@ class Login:
 			).encode("ascii")
 
 			from urllib.error import HTTPError
-			try:
-				opener.open(_req.Request(
-					URL
-					, data= POST_DATA
-					, headers= {
-						"Accept": "text/html, application/xhtml+xml, */*"
-						, "Content-Type": "application/x-www-form-urlencoded"
-						, "Content-Length": len(POST_DATA)
-						, "Connection": "Keep-Alive"
-						, "Cache-Control": "no-cache"
-						, "Referer": referer
-					}
-				), timeout= timeout).close()
-			except HTTPError as e:
-				if e.code!= 302:
-					raise e
-				self.director= opener
-				self.cookieMgr= cookieMgr
 		except Exception as e:
 			raise RuntimeError(e)
+		try:
+			opener.open(_req.Request(
+				URL
+				, data= POST_DATA
+				, headers= {
+					"Accept": "text/html, application/xhtml+xml, */*"
+					, "Content-Type": "application/x-www-form-urlencoded"
+					, "Content-Length": len(POST_DATA)
+					, "Connection": "Keep-Alive"
+					, "Cache-Control": "no-cache"
+					, "Referer": referer
+				}
+			), timeout= timeout).close()
+		except HTTPError as e:
+			self.director= opener
+			self.cookieMgr= cookieMgr
+			if not "user_session" in set(e.name for e in cookieMgr.cookiejar):
+				raise ValueError("Failed to login", mail_tel, self)
+			return
+		raise RuntimeError("UnreachableCode")
 
 
 class _TimeoutMgr:

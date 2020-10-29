@@ -49,7 +49,7 @@ class _Sink:
 			writer= bytesFp.write
 			writer((
 				f"<?xml version='1.0' encoding='{enc}'?>"
-				"<packet>"
+				f"{ sep.decode(enc) }<packet>"
 			).encode(enc))
 			renderBytes= jkM.ET.tostring
 			try:

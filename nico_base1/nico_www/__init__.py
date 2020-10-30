@@ -27,6 +27,22 @@ def _json2ChatElems(loadsArg):
 # 			# del bs
 # 		self.__dict__.update(**locals())
 # 		del self.self
+# 	def getCrnt(self)
+# 		req= self.apid.crnt(self.apid._newThreadkey(self.openTO))
+
+
+from .. import nico_base1 as base
+class NicoWWW(base._TimeoutMgr):
+
+	def __init__(self, **kwargs):
+
+	def pageOf(self, url):
+		with self.openTO(url) as resp:
+			_rBuilder= _RequestBuilder._parseStream(resp)
+
+
+class _Page:
+	__slots__=
 
 
 # def _getCrntJSONCmts(urlopen, apid, then= lambda _:_):
@@ -106,7 +122,7 @@ class _DataApiData(dict):
 		return b
 
 
-class _CmtsRequest(_DataApiData):
+class _RequestBuilder(_DataApiData):
 
 	def crnt(apid, threadkey):
 		from urllib.request import Request

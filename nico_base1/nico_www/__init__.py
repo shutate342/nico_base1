@@ -1,5 +1,11 @@
 """
 Get Comments From Site 'www.nicovideo.jp'
+
+Main Usage:
+
+	session= nico_www.login("your-address@example.com", "your-password")
+	cmts= session.cmtsOf("https://www.nicovideo.jp/watch/1522213250")
+	#     session.cmtsOf("https://www.nicovideo.jp/watch/so32958258")
 """
 
 import json
@@ -38,7 +44,13 @@ class _NicoWWW(_base._TimeoutMgr):
 	def _newThreadkey(self, apid):
 		from urllib.parse import parse_qs
 		with self.openTO( _threadkeyURLOf(apid.threadForThreadkey) ) as resp:
-			return parse_qs(resp.read().decode("ascii"))["threadkey"][0]
+			b= resp.read()
+			try:
+				it= parse_qs(b.decode("ascii"))["threadkey"][0]
+				return it
+			except KeyError:
+				log_f(f"[threadkey] { b }")
+				return ""
 
 	def _newWaybackkey(self, apid):
 		URL= (
@@ -47,17 +59,28 @@ class _NicoWWW(_base._TimeoutMgr):
 		)
 		from urllib.parse import parse_qs
 		with self.openTO( URL ) as resp:
-			return parse_qs(resp.read().decode("ascii"))["waybackkey"][0]
+			try:
+				b= resp.read()
+				return parse_qs(b.decode("ascii"))["waybackkey"][0]
+			except KeyError:
+				log_f(f"[waybackkey] { b }")
+				return ""
 
 
 from datetime import datetime as dt
 class _Comments(_NicoWWW):
+	_debug= None
+
+	def _reqGo(self, req):
+		with self.openTO(req) as resp:
+			it= resp.read()
+			type(self)._debug= locals()
+			return it
 
 	def getCrnt(self):
 		tkey= self._newThreadkey(self._apid)
 		req= self._apid.crnt(tkey)
-		with self.openTO(req) as resp:
-			return resp.read()
+		return self._reqGo(req)
 
 	def getWhen(self, sec):
 		tkey= self._newThreadkey(self._apid)
@@ -67,8 +90,7 @@ class _Comments(_NicoWWW):
 			, waybackkey= wkey
 			, when= sec
 		)
-		with self.openTO(req) as resp:
-			return resp.read()
+		return self._reqGo(req)
 
 	def getAt(self, dt:dt):
 		return self.getWhen( int(dt.timestamp()))
@@ -93,11 +115,11 @@ _ESSENTIAL_ATTRS= "data-environment", "data-api-data"
 
 class _DataApiData(dict):
 
-	# defaultThread= property(
-	# 	lambda apid: apid['thread']["ids"]["default"]
-	# )
+	_defaultThread= property(
+		lambda apid: apid['thread']["ids"]["default"]
+	)
 	threadForThreadkey= property(
-		lambda apid: apid['thread']["ids"]["community"]
+		lambda apid: apid['thread']["ids"]["community"] or apid._defaultThread
 	)
 
 	@classmethod
@@ -136,7 +158,7 @@ class _DataApiData(dict):
 		id= apid._user_id; ukey= apid._userkey
 		waybackD= apid._getWaybackD(waybackkey, when)
 		for d in apid['commentComposite']['threads']:
-			if (not d["isActive"]) or (waybackD and d['label']== "default"):
+			if (not d["isActive"]):# or (waybackD and d['label']== "default"):
 				continue
 			content= (
 				_content100(dur)
@@ -154,7 +176,7 @@ class _DataApiData(dict):
 					or threadkey
 					if d['isThreadkeyRequired'] else None
 				)
-				, userkey= ukey if d["label"]== "default" else None
+				, userkey= ukey if (d["label"]== "default") and (not waybackD) else None
 				, **waybackD
 			)
 		return b
@@ -228,7 +250,7 @@ class _PingsBuilder:
 			'user_id': str(user_id),
 			'version': '20090904',
 			'with_global': 1}}
-		dThread.update(others)
+		dThread["thread"].update(others)
 		dThreadL= {'thread_leaves': {
 			'content': content,
 			'fork': fork,
@@ -237,7 +259,7 @@ class _PingsBuilder:
 			'scores': 1,
 			'thread': str(thread),
 			'user_id': str(user_id)}}
-		dThreadL.update(others)
+		dThreadL["thread_leaves"].update(others)
 		set_= dThread["thread"].__setitem__
 		setl= dThreadL["thread_leaves"].__setitem__
 		if threadkey:

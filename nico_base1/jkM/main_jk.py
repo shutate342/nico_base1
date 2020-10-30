@@ -49,7 +49,7 @@ class _Sink:
 			writer= bytesFp.write
 			writer((
 				f"<?xml version='1.0' encoding='{enc}'?>"
-				f"{ sep.decode(enc) }<packet>"
+				f"{ os.linesep }<packet>"
 			).encode(enc))
 			renderBytes= jkM.ET.tostring
 			try:
@@ -147,7 +147,7 @@ class SyoboiCmts:
 		if os.path.exists(dst):
 			raise FileExistsError(dst)
 		with open(dst, "wb") as f:
-			(sink or _Sink.of(b"\r\n"))(
+			(sink or _Sink.of(os.linesep.encode("utf_8"), "utf_8"))(
 				f
 				, map(elemMapper or shiftFWer( jkM.vposdiffAt(self.prog.startDT) ), self.server)
 				, self.server.epilogues

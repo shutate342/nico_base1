@@ -50,6 +50,7 @@ class _NicoWWW(_base._TimeoutMgr):
 			return parse_qs(resp.read().decode("ascii"))["waybackkey"][0]
 
 
+from datetime import datetime as dt
 class _Comments(_NicoWWW):
 
 	def getCrnt(self):
@@ -59,8 +60,18 @@ class _Comments(_NicoWWW):
 			return resp.read()
 
 	def getWhen(self, sec):
-		raise NotImplementedError
+		tkey= self._newThreadkey(self._apid)
+		wkey= self._newWaybackkey(self._apid)
+		req= self._apid.when(
+			threadkey= tkey
+			, waybackkey= wkey
+			, when= sec
+		)
+		with self.openTO(req) as resp:
+			return resp.read()
 
+	def getAt(self, dt:dt):
+		return self.getWhen( int(dt.timestamp()))
 
 # def _getCrntJSONCmts(urlopen, apid, then= lambda _:_):
 
@@ -111,18 +122,27 @@ class _DataApiData(dict):
 		try:    return self['context']['userkey']
 		except: log_f("[_userkey] NotFound"); return
 
-	def _mkPings(apid, threadkey= None, index= 0):
+	@staticmethod
+	def _getWaybackD(waybackkey, when):
+		if {waybackkey, when}== {None}:
+			return {}
+		if not all([isinstance(waybackkey, str), isinstance(when, int)]):
+			raise ValueError(waybackkey, when)
+		return locals()
+
+	def _mkPings(apid, threadkey= None, index= 0, waybackkey= None, when= None):
 		b= _PingsBuilder(index)
 		dur= apid["video"]["duration"]
 		id= apid._user_id; ukey= apid._userkey
+		waybackD= apid._getWaybackD(waybackkey, when)
 		for d in apid['commentComposite']['threads']:
-			if not d["isActive"]:
+			if (not d["isActive"]) or (waybackD and d['label']== "default"):
 				continue
 			content= (
-					_content100(dur)
-					if   d["fork"]== 0
-					else _content25(dur)
-				)
+				_content100(dur)
+				if   d["fork"]== 0
+				else _content25(dur)
+			)
 			b= b.addPingOf(
 				thread= d["id"]
 				, fork= d["fork"]
@@ -135,6 +155,7 @@ class _DataApiData(dict):
 					if d['isThreadkeyRequired'] else None
 				)
 				, userkey= ukey if d["label"]== "default" else None
+				, **waybackD
 			)
 		return b
 
@@ -146,6 +167,18 @@ class _RequestBuilder(_DataApiData):
 		return Request(
 			"https://nmsg.nicovideo.jp/api.json/"
 			, data= json.dumps( apid._mkPings(threadkey).build(0) ).encode("utf_8")
+			, headers= { 'Content-Type': 'text/plain;charset=UTF-8' }
+			, method= "POST"
+		)
+
+	def when(apid, threadkey, waybackkey, when):
+		from urllib.request import Request
+		d= apid._mkPings(
+			threadkey, waybackkey= waybackkey, when= when
+		).build(0)
+		return Request(
+			"https://nmsg.nicovideo.jp/api.json/"
+			, data= json.dumps( d ).encode("utf_8")
 			, headers= { 'Content-Type': 'text/plain;charset=UTF-8' }
 			, method= "POST"
 		)
@@ -181,7 +214,11 @@ class _PingsBuilder:
 		, user_id
 		, userkey= None
 		, threadkey= None
+		, **others
 	):
+		unk= set(others)- {"waybackkey", "when"}
+		if unk:
+			raise KeyError(unk)
 		dThread= {'thread': {
 			'fork': fork,
 			'language': 0,
@@ -191,6 +228,7 @@ class _PingsBuilder:
 			'user_id': str(user_id),
 			'version': '20090904',
 			'with_global': 1}}
+		dThread.update(others)
 		dThreadL= {'thread_leaves': {
 			'content': content,
 			'fork': fork,
@@ -199,13 +237,14 @@ class _PingsBuilder:
 			'scores': 1,
 			'thread': str(thread),
 			'user_id': str(user_id)}}
-		set= dThread["thread"].__setitem__
+		dThreadL.update(others)
+		set_= dThread["thread"].__setitem__
 		setl= dThreadL["thread_leaves"].__setitem__
 		if threadkey:
-			set("threadkey", threadkey); setl("threadkey", threadkey)
-			set("force_184", "1"); setl("force_184", "1")
+			set_("threadkey", threadkey); setl("threadkey", threadkey)
+			set_("force_184", "1"); setl("force_184", "1")
 		if userkey:
-			set("userkey", userkey); setl("userkey", userkey)
+			set_("userkey", userkey); setl("userkey", userkey)
 		i= self._index
 		acc= [
 			*self._acc,

@@ -17,32 +17,49 @@ def _json2ChatElems(loadsArg):
 		yield it
 
 
-# class _Page:
-# 	def __init__(self, urlopen, url):
-# 		import bs4
-# 		with urlopen(url) as resp:
-# 			bs= bs4.BeautifulSoup(resp.read(), "html.parser")
-# 			apid= _DataApiData.fromBS(bs)
-# 
-# 			# del bs
-# 		self.__dict__.update(**locals())
-# 		del self.self
-# 	def getCrnt(self)
-# 		req= self.apid.crnt(self.apid._newThreadkey(self.openTO))
+from   .. import nico_base1 as _base
+def login(mail_tel, password, timeout= object()):
+	d= dict(timeout= timeout) if not isinstance(timeout, object) else {}
+	return _NicoWWW(_base.Login(mail_tel, password), **d)
 
 
-from .. import nico_base1 as base
-class NicoWWW(base._TimeoutMgr):
+class _NicoWWW(_base._TimeoutMgr):
 
-	def __init__(self, **kwargs):
-
-	def pageOf(self, url):
+	def cmtsOf(self, url):
 		with self.openTO(url) as resp:
-			_rBuilder= _RequestBuilder._parseStream(resp)
+			import bs4
+			_dbs= bs4.BeautifulSoup(resp, "html.parser")
+			_apid= _RequestBuilder._parseStream(str(_dbs))
+			return _Comments(
+				timeout= (self.connectTimeout, self.readTimeout)
+				, **self.__dict__, **(lambda d: d.pop("self") and d)(locals())
+			)
+
+	def _newThreadkey(self, apid):
+		from urllib.parse import parse_qs
+		with self.openTO( _threadkeyURLOf(apid.threadForThreadkey) ) as resp:
+			return parse_qs(resp.read().decode("ascii"))["threadkey"][0]
+
+	def _newWaybackkey(self, apid):
+		URL= (
+			"https://flapi.nicovideo.jp/api/getwaybackkey"
+			f"?thread={ apid.threadForThreadkey }"
+		)
+		from urllib.parse import parse_qs
+		with self.openTO( URL ) as resp:
+			return parse_qs(resp.read().decode("ascii"))["waybackkey"][0]
 
 
-class _Page:
-	__slots__=
+class _Comments(_NicoWWW):
+
+	def getCrnt(self):
+		tkey= self._newThreadkey(self._apid)
+		req= self._apid.crnt(tkey)
+		with self.openTO(req) as resp:
+			return resp.read()
+
+	def getWhen(self, sec):
+		raise NotImplementedError
 
 
 # def _getCrntJSONCmts(urlopen, apid, then= lambda _:_):
@@ -132,11 +149,6 @@ class _RequestBuilder(_DataApiData):
 			, headers= { 'Content-Type': 'text/plain;charset=UTF-8' }
 			, method= "POST"
 		)
-
-	def _newThreadkey(apid, urlopen):
-		from urllib.parse import parse_qs
-		with urlopen( _threadkeyURLOf(apid.threadForThreadkey) ) as resp:
-			return parse_qs(resp.read().decode("ascii"))["threadkey"][0]
 
 
 _content100= lambda dur_sec: f"0-{ int(dur_sec)//60+ 1 }:100,1000,nicoru:100"

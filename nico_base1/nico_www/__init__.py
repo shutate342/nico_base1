@@ -69,7 +69,12 @@ def login(mail_tel, password, timeout= (9, 40)):
 		= None (set blocking True)
 	"""
 	# d= dict(timeout= timeout) if not isinstance(timeout, object) else {}
-	return _NicoWWW(_base.Login(mail_tel, password), timeout)
+	login= _base.Login(mail_tel, password)
+	_validate= lambda: (
+		not "user_session" in set(e.name for e in login.cookieMgr.cookiejar)
+		and _raise(RuntimeError, "LoggedOut")
+	)
+	return _NicoWWW(login, timeout, _validate= _validate)
 
 
 def watch(thread_or_videoID):
@@ -79,6 +84,7 @@ def watch(thread_or_videoID):
 class _NicoWWW(_base._TimeoutMgr):
 
 	def cmtsOf(self, url):
+		self._validate()
 		with self.openTO(url) as resp:
 			import bs4
 			_dbs= bs4.BeautifulSoup(resp, "html.parser")
@@ -147,11 +153,13 @@ class _Comments(_NicoWWW):
 			generator= cmts.getCrnt(getContent)
 			assert next(generator)== b""
 		"""
+		self._validate()
 		tkey= self._newThreadkey(self._apid)
 		req= self._apid._crnt(tkey)
 		return self._reqGo(req, parseBIO)
 
 	def getWhen(self, timestamp_sec, parseBIO= getContent):
+		self._validate()
 		tkey= self._newThreadkey(self._apid)
 		wkey= self._newWaybackkey(self._apid)
 		req= self._apid._when(

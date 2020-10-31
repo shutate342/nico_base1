@@ -19,6 +19,7 @@ from datetime:
 from   .. import jkM
 from   .. import nico_base1 as base
 from   .. import cal_syoboi as sy
+from   ..local_cmts import _Sink, newDefaultSink
 import os
 
 elementsTest= lambda jk: [*jkM.CmtsIter(jk, "jk11", 1346688000, 1346689800)]
@@ -34,43 +35,6 @@ def shiftFWer(vpos):
 		return elem
 	return mapper
 
-class _Sink:
-	"""
-	consume XML elements
-
-	__call__ メソッドの引数にある要素たちを
-	レンダリングし、ファイルに書き込みます。
-	"""
-
-	@staticmethod
-	def of(sep= b"", encoding= "utf_8"):
-		enc= encoding
-		def go(bytesFp, elems, epilogues):
-			writer= bytesFp.write
-			writer((
-				f"<?xml version='1.0' encoding='{enc}'?>"
-				f"{ os.linesep }<packet>"
-			).encode(enc))
-			renderBytes= jkM.ET.tostring
-			try:
-				for e in elems:
-					writer(sep); writer(renderBytes(e, enc, "html"))
-				for e in epilogues:
-					writer(sep); writer(renderBytes(e, enc, "html"))
-			except (Exception, KeyboardInterrupt) as exc:
-				raise exc
-			finally:
-				writer(b"</packet>")
-		return _Sink(**locals())
-
-	def __init__(self, **kwargs):
-		self.__dict__= kwargs
-
-	def __call__(self, bytesFp, elems: jkM.ET.Element, epilogues= []):
-		return self.go(bytesFp, elems, epilogues)
-
-
-newDefaultSink= _Sink.of
 
 def programOf(chIdentifier: object, startDT: jkM.dt, min: int, **kwargs):
 	"""

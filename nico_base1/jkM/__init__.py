@@ -5,8 +5,10 @@
 
 from   ..nico_base1 import *
 from   ..nico_base1 import _TimeoutMgr, _MAGIC
+from   ..local_cmts import elems2ETree
 from   datetime import datetime as dt, timedelta as td
 import xml.etree.ElementTree as ET
+
 
 def dtPair(dt, duration= 60* 30) -> (dt, dt):
 	"duration [second]: int"
@@ -208,14 +210,6 @@ class CmtsIterStat(CmtsIter):
 		yield from it
 
 
-def elems2ETree(elems):
-	packet= ET.Element("packet")
-	# 例外の投げ方が凶悪
-	packet.extend(elems)
-	return ET.ElementTree(packet)
-
-
-# ラジオは未完
 jkTable= dict(
 	(lambda no, key: [key.strip(), f"jk{ no.strip() }"])
 	(*s.strip().split("=", 1))
@@ -235,7 +229,46 @@ jkTable= dict(
 	12  =チバテレビ
 
 
+	594 =NHKラジオ第1
+	693 =NHKラジオ第2
+	825 =NHK-FM
+	792 =AIR-G'
+	1287=HBCラジオ
+	1440=STVラジオ
+	3925=ラジオNIKKEI第1放送
+	761 =Inter FM
+	800 =TOKYO FM
+	813 =J-WAVE
+	954 =TBSラジオ
+	1134=文化放送
+	1197=茨城放送
+	1242=ニッポン放送
+	764 =RADIO BERRY
+	863 =FMぐんま
+	780 =bayfm
+	795 =NACK5
+	847 =FMヨコハマ
+	1422=ラジオ日本
+	778 =ZIP-FM
+	807 =FM AICHI
+	1053=CBCラジオ
+	1332=東海ラジオ
+	1431=ぎふチャン
+	789 =radio CUBE FM三重
+	765 =FM COCOLO
+	802 =FM802
+	851 =FM OSAKA
+	899 =Kiss FM KOBE
+	1008=朝日放送
+	1179=毎日放送
+	1314=ラジオ大阪
 	1143=KBS京都
+	558 =ラジオ関西
+	1557=和歌山放送
+	808 =FM FUKUOKA
+	827 =Love FM
+	1278=RKBラジオ
+	1413=九州朝日放送
 
 
 	101 =NHKBS-1

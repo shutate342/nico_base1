@@ -35,8 +35,8 @@ def _json2ChatElems(loadsArg):
 
 
 from   .. import nico_base1 as _base
-def login(mail_tel, password, timeout= object()):
-	d= dict(timeout= timeout) if not isinstance(timeout, object) else {}
+def login(mail_tel, password, timeout= (9, 40)):
+	# d= dict(timeout= timeout) if not isinstance(timeout, object) else {}
 	return _NicoWWW(_base.Login(mail_tel, password), **d)
 
 
@@ -50,6 +50,9 @@ class _NicoWWW(_base._TimeoutMgr):
 			return _Comments(
 				timeout= (self.connectTimeout, self.readTimeout)
 				, **self.__dict__, **(lambda d: d.pop("self") and d)(locals())
+				, **{ k: getattr(_apid, k) for k
+					in set(dir(_apid))- set(dir(dict)) if k[:1]!= "_"
+				}
 			)
 
 	def _newThreadkey(self, apid):
@@ -97,13 +100,13 @@ class _Comments(_NicoWWW):
 
 	def getCrnt(self, parseBIO= getContent):
 		tkey= self._newThreadkey(self._apid)
-		req= self._apid.crnt(tkey)
+		req= self._apid._crnt(tkey)
 		return self._reqGo(req, parseBIO)
 
 	def getWhen(self, sec, parseBIO= getContent):
 		tkey= self._newThreadkey(self._apid)
 		wkey= self._newWaybackkey(self._apid)
-		req= self._apid.when(
+		req= self._apid._when(
 			threadkey= tkey
 			, waybackkey= wkey
 			, when= sec
@@ -213,7 +216,7 @@ class _DataApiData(dict):
 
 class _RequestBuilder(_DataApiData):
 
-	def crnt(apid, threadkey):
+	def _crnt(apid, threadkey):
 		from urllib.request import Request
 		return Request(
 			"https://nmsg.nicovideo.jp/api.json/"
@@ -222,7 +225,7 @@ class _RequestBuilder(_DataApiData):
 			, method= "POST"
 		)
 
-	def when(apid, threadkey, waybackkey, when):
+	def _when(apid, threadkey, waybackkey, when):
 		from urllib.request import Request
 		d= apid._mkPings(
 			threadkey, waybackkey= waybackkey, when= when

@@ -37,7 +37,7 @@ def _json2ChatElems(loadsArg):
 from   .. import nico_base1 as _base
 def login(mail_tel, password, timeout= (9, 40)):
 	# d= dict(timeout= timeout) if not isinstance(timeout, object) else {}
-	return _NicoWWW(_base.Login(mail_tel, password), **d)
+	return _NicoWWW(_base.Login(mail_tel, password), timeout)
 
 
 class _NicoWWW(_base._TimeoutMgr):

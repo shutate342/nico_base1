@@ -123,4 +123,11 @@ class _TimeoutMgr:
 			raise e
 		raise RuntimeError("APIChanged")
 
+	def __enter__(self):
+		return self
+
+	def __exit__(self, ex_type, ex_value, trace):
+		ignoreE= True
+		self.logout()
+		return not ignoreE
 

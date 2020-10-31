@@ -124,7 +124,7 @@ class CmtsIter:
 				else:
 					raise exc
 				elems= tuple(
-					e for e in packet.getiterator("chat")
+					e for e in packet.findall("chat")
 					if int(e.attrib["no"])< min_no
 				)
 				try:

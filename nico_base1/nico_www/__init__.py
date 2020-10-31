@@ -11,6 +11,7 @@ session= m.login("your-address@example.com", "your-password")
 
 # want to get comments 'YagaKimi' episode 1
 #     session.cmtsOf("https://www.nicovideo.jp/watch/1539138303")
+#     session.cmtsOf(                        m.watch(1539138303))
 cmts= session.cmtsOf("https://www.nicovideo.jp/watch/so33993109")
 
 # cmts.getCrnt() -> bytes
@@ -69,6 +70,10 @@ def login(mail_tel, password, timeout= (9, 40)):
 	"""
 	# d= dict(timeout= timeout) if not isinstance(timeout, object) else {}
 	return _NicoWWW(_base.Login(mail_tel, password), timeout)
+
+
+def watch(thread_or_videoID):
+	return f"https://www.nicovideo.jp/watch/{ thread_or_videoID }"
 
 
 class _NicoWWW(_base._TimeoutMgr):

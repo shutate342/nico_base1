@@ -1,14 +1,19 @@
 # nico_base1
 
 * 簡単でインタラクティブにも使えるニコニコ関連（予定）のコメント取得API
+* 過剰にリクエストを送ってサーバーに負荷をかけることの無いようにしてください。
 
 
 # Features
 
-* 今のところ ニコニコ実況のコメントのみ
+* ニコニコ実況
   * 基本的に [しょぼいカレンダー](https://cal.syoboi.jp/)(このサイトありきの実況 API です) の検索結果や  
     「放送時間」 のページURL から 要素をもらって従っていくと楽ですが  
 	後で説明するように日付指定もできます。ちなみに過去ログのみ対応です。
+
+* ニコニコ動画
+  * URL などからコメントを取得、日付指定も可能です。下の Usage をご覧ください。
+  * 気が向いたらチャンネルのリンク抽出とかも追加するかも。
 
 _要追加_
 
@@ -23,6 +28,44 @@ _要追加_
 
 # Usage
 
+## www.nicovideo.jp
+
+```python
+import nico_base1.nico_www as m
+
+session= m.login("your-address@example.com", "your-password")
+
+# want to get comments 'YagaKimi' episode 1
+#     session.cmtsOf("https://www.nicovideo.jp/watch/1539138303")
+#     session.cmtsOf(                        m.watch(1539138303))
+cmts= session.cmtsOf("https://www.nicovideo.jp/watch/so33993109")
+
+# cmts.getCrnt() -> bytes
+# cmts.getCrnt(m.json.load) -> (JSON document to a Python object)
+# cmts.getCrnt(cmts.CHATS) -> [xml.etree.ElementTree.Element]
+elems= cmts.getAt(m.dt(2018,10,15,14,35), cmts.CHATS)
+
+# example: use elems
+# len([e for e in elems if e.get("deleted")])
+# -> count current deleted comments
+# elems= [e for e in elems if not ("TDN" in e.text or "ＴＤＮ" in e.text)]
+# -> filter comments
+
+# save to file
+# cmts.getVideoID("No ID") -> "sm***" or "so***" or ...
+dst= cmts.getFileNameTitle("Default title if not found")+ ".xml"
+
+from nico_base1.local_cmts import elems2PacketETree
+# force overwrite
+elems2PacketETree(elems).write( dst, "utf_8")
+
+# or
+from nico_base1.local_cmts import newDefaultSink
+# default: raise FileExistsError
+newDefaultSink(b"\x0d\x0a").bindPath(dst)(elems)
+```
+
+## jk.nicovideo.jp
 
 ```python
 from nico_base1 import cal_syoboi as sy
@@ -63,7 +106,6 @@ _要追加_
 
 # ToDo
 
-* jkM.jkTable 全部そろえる
 * 他のニコニコサービスAPIも追加する
 
 # Author

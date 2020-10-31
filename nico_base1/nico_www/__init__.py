@@ -3,12 +3,23 @@ Get Comments From Site 'www.nicovideo.jp'
 
 Main Usage:
 
-	session= nico_www.login("your-address@example.com", "your-password")
-	cmts= session.cmtsOf("https://www.nicovideo.jp/watch/1522213250")
-	#     session.cmtsOf("https://www.nicovideo.jp/watch/so32958258")
+import nico_www as m
+
+session= m.login("your-address@example.com", "your-password")
+
+#     session.cmtsOf("https://www.nicovideo.jp/watch/1539138303")
+cmts= session.cmtsOf("https://www.nicovideo.jp/watch/so33993109")
+
+# cmts.getCrnt() -> bytes
+# cmts.getCrnt(json.load) -> (JSON document to a Python object)
+# cmts.getCrnt(cmts.CHATS) -> [xml.etree.ElementTree.Element]
+elems= cmts.getAt(m.dt(2018,10,15,14,35), cmts.CHATS)
+
+# len([e for e in elems if e.get("deleted")]) -> current deleted comments
 """
 
 import json
+from   datetime import datetime as dt
 
 log_f= print
 
@@ -43,7 +54,7 @@ class _NicoWWW(_base._TimeoutMgr):
 
 	def _newThreadkey(self, apid):
 		from urllib.parse import parse_qs
-		with self.openTO( _threadkeyURLOf(apid.threadForThreadkey) ) as resp:
+		with self.openTO( _threadkeyURLOf(apid._threadForThreadkey) ) as resp:
 			b= resp.read()
 			try:
 				it= parse_qs(b.decode("ascii"))["threadkey"][0]
@@ -55,7 +66,7 @@ class _NicoWWW(_base._TimeoutMgr):
 	def _newWaybackkey(self, apid):
 		URL= (
 			"https://flapi.nicovideo.jp/api/getwaybackkey"
-			f"?thread={ apid.threadForThreadkey }"
+			f"?thread={ apid._threadForThreadkey }"
 		)
 		from urllib.parse import parse_qs
 		with self.openTO( URL ) as resp:
@@ -67,22 +78,29 @@ class _NicoWWW(_base._TimeoutMgr):
 				return ""
 
 
-from datetime import datetime as dt
+def getContent(io):
+	"-> io.read()"
+	return io.read()
+
+
 class _Comments(_NicoWWW):
 	_debug= None
 
-	def _reqGo(self, req):
-		with self.openTO(req) as resp:
-			it= resp.read()
-			type(self)._debug= locals()
-			return it
+	@staticmethod
+	def CHATS(bytesIO_):
+		return list(_json2ChatElems(bytesIO_.read()))
 
-	def getCrnt(self):
+	def _reqGo(self, req, parseBIO):
+		with self.openTO(req) as resp:
+			type(self)._debug= locals()
+			return parseBIO(resp)
+
+	def getCrnt(self, parseBIO= getContent):
 		tkey= self._newThreadkey(self._apid)
 		req= self._apid.crnt(tkey)
-		return self._reqGo(req)
+		return self._reqGo(req, parseBIO)
 
-	def getWhen(self, sec):
+	def getWhen(self, sec, parseBIO= getContent):
 		tkey= self._newThreadkey(self._apid)
 		wkey= self._newWaybackkey(self._apid)
 		req= self._apid.when(
@@ -90,10 +108,10 @@ class _Comments(_NicoWWW):
 			, waybackkey= wkey
 			, when= sec
 		)
-		return self._reqGo(req)
+		return self._reqGo(req, parseBIO)
 
-	def getAt(self, dt:dt):
-		return self.getWhen( int(dt.timestamp()))
+	def getAt(self, dt:dt, parseBIO= getContent):
+		return self.getWhen( int(dt.timestamp()), parseBIO)
 
 # def _getCrntJSONCmts(urlopen, apid, then= lambda _:_):
 
@@ -118,9 +136,20 @@ class _DataApiData(dict):
 	_defaultThread= property(
 		lambda apid: apid['thread']["ids"]["default"]
 	)
-	threadForThreadkey= property(
+	_threadForThreadkey= property(
 		lambda apid: apid['thread']["ids"]["community"] or apid._defaultThread
 	)
+
+	def getVideoID(self, default):
+		try: return self["video"]['id']
+		except: return default
+
+	def getFileNameTitle(self, default, esc= r'[\n\r\t\\/:*?"<>|]', replaced= "_"):
+		# r'[\n\r\\/:*?"<>|]' r'[^\w\-_\.\u3000 ]'
+		import re
+		go= lambda s: re.sub(esc, replaced, s)
+		try: return go( self["video"]["title"] )
+		except: return go( default )
 
 	@classmethod
 	def _parseStream(cls, byteslike_or_io):

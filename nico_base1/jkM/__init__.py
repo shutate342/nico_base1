@@ -130,7 +130,7 @@ class CmtsIter:
 			)
 
 		def get():
-			VPOSDAY= (60* 60* 24)* 100
+			DAY= (60* 60* 24)
 			now= int( _prevAM4(dt.fromtimestamp(end_ts)).timestamp() )+ 3
 			end= end_ts
 			enumerator= this._enumeratorOf(
@@ -145,7 +145,7 @@ class CmtsIter:
 			while start_ts< now:
 				log_f(f"[main] over AM4")
 				yield from go()
-				end= now; now-= VPOSDAY
+				end= now; now-= DAY
 			now= start_ts; yield from go()
 
 		_serialize= _vposSerializer(dt.fromtimestamp(start_ts))

@@ -21,10 +21,27 @@ def vposdiffAt(dt_):
 	return i [second] * 100: int
 		| 0 <= i < 24[hour]
 	"""
+	base= _prevAM4(dt_)
+	return int( (dt_- base).total_seconds()* 100 )
+
+def _prevAM4(dt_):
 	base= dt(*dt_.timetuple()[:3], 4)
 	if dt_< base:
 		base-= td(1)
-	return int( (dt_- base).total_seconds()* 100 )
+	return base
+
+def _vposSerializer(startDT):
+	VPOSDAY= (60* 60* 24)* 100
+	VPOS2HOUR= (60* 60* 2)* 100
+	# vposbase= int(startDT.timestamp())* 100
+	baseAM4= _prevAM4(startDT)
+	def go(dt_, vpos):
+		diffdays= (_prevAM4(dt_)- baseAM4).days
+		# 4時をすぎているが vpos が更新されていないものに注意
+		if dt_.hour== 4 and VPOS2HOUR< vpos:
+			diffdays-= 1
+		return VPOSDAY* diffdays+ vpos
+	return go
 
 
 class _JK(_TimeoutMgr):
@@ -67,6 +84,8 @@ class CmtsIter:
 	response が no の順番に従っていることに依存
 	date は date_usec を無視すれば順番に従っている
 	vpos は順番どおりではない。コメント送信時間のずれが加味されている？
+
+	vpos は date よりも早まっている
 	"""
 
 	def __iter__(self):
@@ -86,6 +105,16 @@ class CmtsIter:
 	def epilogues(self):
 		return []
 
+	DEFAULT_COUNTDOWN= 1000000000
+
+	@staticmethod
+	def _enumeratorOf(countdown_from, overAM4):
+		if overAM4:
+			import itertools as itls
+			return lambda e, _g= itls.count(countdown_from, -1): str(next(_g))
+		else:
+			return lambda e: e.get("no")
+
 	def __init__(this, self: _JK, jkCh: str, start_ts: int, end_ts: int):
 		"""
 		jkCh: channel like 'jk1'
@@ -99,9 +128,30 @@ class CmtsIter:
 			raise RuntimeError(
 				"[main] LoggedOut or Expired or OutsideServicePeriod: bad flv2 info 'user_id'"
 			)
-		wbkey= self.getwaybackkey(flvInfo["thread_id"])
-		
+
 		def get():
+			VPOSDAY= (60* 60* 24)* 100
+			now= int( _prevAM4(dt.fromtimestamp(end_ts)).timestamp() )+ 3
+			end= end_ts
+			enumerator= this._enumeratorOf(
+				this.DEFAULT_COUNTDOWN
+				, start_ts< now
+			)
+			def go():
+				inf= self.getflv2(jkCh, now, end)
+				for e in _get1Day(now, end, inf):
+					e.set("no", enumerator(e))
+					if start_ts<= int(e.get("date")): yield e
+			while start_ts< now:
+				log_f(f"[main] over AM4")
+				yield from go()
+				end= now; now-= VPOSDAY
+			now= start_ts; yield from go()
+
+		_serialize= _vposSerializer(dt.fromtimestamp(start_ts))
+		
+		def _get1Day(start_ts, end_ts, flvInfo):
+			wbkey= self.getwaybackkey(flvInfo["thread_id"])
 			min_ts= end_ts
 			min_no= float("inf")
 			while start_ts<= min_ts:
@@ -124,25 +174,32 @@ class CmtsIter:
 				else:
 					raise exc
 				elems= tuple(
-					e for e in packet.findall("chat")
+					e.set("vpos", str( _serialize(
+						 dt.fromtimestamp( int(e.get("date")) ), int(e.get("vpos"))
+					)))
+					or e
+					for e in reversed(packet.findall("chat"))
 					if int(e.attrib["no"])< min_no
 				)
 				try:
-					crntMaxNo= int( elems[-1].attrib["no"] )
+					nomaxE= elems[0]; nominE= elems[-1]
 				except IndexError:
 					log_f(f"[main] break: Not found element")
 					break
+				if nomaxE is nominE:
+					log_f(f"[main] final: chat len({len(elems)})"); break
+				crntMaxNo= int( nomaxE.attrib["no"] )
 				if (
 					min_no!= float("inf")
 					and crntMaxNo+ 1!= min_no
 				):
 					raise RuntimeError(f'[main] TruncatedComments: getmax={crntMaxNo}, crntmin={min_no}')
-				min_no= int(elems[0].attrib["no"])
+				min_no= int(nominE.attrib["no"])
 				min_ts= (
 					# min( int(e.attrib["date"]) for e in elems )
-					int( elems[0].attrib["date"] )
+					int( nominE.attrib["date"] )
 				)
-				yield from reversed(elems)
+				yield from elems
 
 			log_f(f"[main] end {jkCh} {start_ts}")
 

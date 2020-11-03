@@ -230,7 +230,7 @@ def search(title_query: str) -> [Title]:
 		return [
 			Title._of(
 				joinSlash(resp.url, "time")
-				, getattr([*bs.select("h1[title]"), None][0], "text", "").strip()
+				, [*[next(e.children) for e in bs.select("h1[title]")], ""][0].strip()
 			)
 		]
 	from functools import reduce

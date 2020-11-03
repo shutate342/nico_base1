@@ -1,4 +1,4 @@
 _others/
 __pycache__/
-/b*.py
+/*.py
 *.xml

@@ -2,3 +2,4 @@ _others/
 __pycache__/
 /*.py
 *.xml
+*.bat

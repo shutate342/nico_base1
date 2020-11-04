@@ -35,12 +35,24 @@ def _vposSerializer(startDT):
 	VPOS2HOUR= (60* 60* 2)* 100
 	# vposbase= int(startDT.timestamp())* 100
 	baseAM4= _prevAM4(startDT)
-	def go(dt_, vpos):
+	def go(elem):
+		dt_= dt.fromtimestamp( int(elem.get("date")) )
+		it= {}
+		try:
+			vpos= int( elem.get("vpos") )
+		except TypeError:
+			# vpos ‚È‚¯‚ê‚Î©•ª‚Å¶¬
+			import random
+			randv= -random.randint(150, 250)
+			vpos= vposdiffAt( dt_ )+ randv
+			it["add_randvpos"]= str(randv)
+
 		diffdays= (_prevAM4(dt_)- baseAM4).days
 		# 4‚ğ‚·‚¬‚Ä‚¢‚é‚ª vpos ‚ªXV‚³‚ê‚Ä‚¢‚È‚¢‚à‚Ì‚É’ˆÓ
 		if dt_.hour== 4 and VPOS2HOUR< vpos:
 			diffdays-= 1
-		return VPOSDAY* diffdays+ vpos
+		it["vpos"]= str( VPOSDAY* diffdays+ vpos )
+		return it
 	return go
 
 
@@ -151,6 +163,7 @@ class CmtsIter:
 		_serialize= _vposSerializer(dt.fromtimestamp(start_ts))
 		
 		def _get1Day(start_ts, end_ts, flvInfo):
+			import random
 			wbkey= self.getwaybackkey(flvInfo["thread_id"])
 			min_ts= end_ts
 			min_no= float("inf")
@@ -174,10 +187,7 @@ class CmtsIter:
 				else:
 					raise exc
 				elems= tuple(
-					e.set("vpos", str( _serialize(
-						 dt.fromtimestamp( int(e.get("date")) ), int(e.get("vpos"))
-					)))
-					or e
+					e.attrib.update( _serialize(e) ) or e
 					for e in reversed(packet.findall("chat"))
 					if int(e.attrib["no"])< min_no
 				)

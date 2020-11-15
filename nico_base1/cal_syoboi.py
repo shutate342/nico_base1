@@ -115,7 +115,7 @@ class _Program:
 			_HTMLID= bs.get("id")
 			return _Program(**locals())
 		except Exception as e:
-			import sys; print(f"[_Program] { e }", file= sys.stderr)
+			# import sys; print(f"[_Program] { e }", file= sys.stderr)
 			return _ErrProgram(locals())
 
 def bs2EitherProgs(parsed: bs4.BeautifulSoup) -> dict:

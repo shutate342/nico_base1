@@ -5,11 +5,29 @@
 
 import urllib.request as _req
 
-log_f= print
+def log_f(*args, **kwargs):
+	if _log_f_hook:
+		_log_f_hook(*args, **kwargs)
+_log_f_hook= None
+
+def setHooks(log_f_hook= None, MAGIC_hook= None) -> type(None):
+	"""
+	hook log functions
+	log_f_hook
+		func(*args, **kwargs) -> type(None)
+	MAGIC_hook
+		func(o) -> type(None)
+	"""
+	global _log_f_hook, _MAGIC_hook
+	_log_f_hook= log_f_hook
+	_MAGIC_hook= MAGIC_hook
 
 def _MAGIC(o):
-	log_f(f"[MagicNumber] {o}")
+	if _MAGIC_hook:
+		_MAGIC_hook(o)
 	return o
+_MAGIC_hook= None
+
 
 class _UserAgentForger(_req.BaseHandler):
 

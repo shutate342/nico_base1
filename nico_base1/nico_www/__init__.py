@@ -42,7 +42,6 @@ newDefaultSink(b"\x0d\x0a").bindPath(dst)(elems)
 import json
 from   datetime import datetime as dt
 
-log_f= print
 
 def json2ChatElems(loadsArg):
 	"""
@@ -61,6 +60,7 @@ def json2ChatElems(loadsArg):
 
 
 from   .. import nico_base1 as _base
+log_f= _base.log_f
 def login(mail_tel, password, timeout= (9, 40)):
 	"""
 	timeout: object

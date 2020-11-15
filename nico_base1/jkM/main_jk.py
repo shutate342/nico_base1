@@ -90,7 +90,7 @@ class SyoboiCmts:
 		return SyoboiCmts(
 			jkM.CmtsIter(
 				jk
-				, jkM.jkTable[prog.chName]
+				, tryJKChID(prog)
 				, ts
 				, ts+ (60* prog.min)
 			)
@@ -150,7 +150,7 @@ class _JKAPI(jkM._JK):
 		ts= int(prog.startDT.timestamp())
 		return SyoboiCmts(
 			jkM.CmtsIterStat(
-				jk, jkM.jkTable[prog.chName]
+				jk, tryJKChID(prog)
 				, ts, ts+ (60* prog.min)
 			)
 			, prog
@@ -178,3 +178,111 @@ def loginJK(mail_tel, password, timeout= object()) -> _JKAPI:
 	d= dict(timeout= timeout) if not type(timeout) is object else {}
 	return _JKAPI(base.Login(mail_tel, password), **d)
 
+
+def tryJKChID(prog: sy._Program) -> str:
+	"""
+	Get JKChID more strictly than jkM.jkTable.
+	return 'jk****'
+	"""
+	return (
+		syChIDTable.get(getattr(prog, "_syChID", None))
+		or jkM.jkTable[prog.chName]
+	)
+
+
+# Test:
+# itemd= {e.find("chid").text: e.find("chname").text for e in LOOKUPS("chitem")}
+# g= (print(f"myi: {e}") or (itemd[e[0]], MAIN.programOf(e[1], None, 0).chName) for e in syChIDTable.items())
+# next(g), ...
+syChIDTable= {
+	"1": "jk1"
+	, "2": "jk2"
+	# eテレのマルチ編成？同じにしてしまった
+	, "64": "jk2", "65": "jk2"
+# kbs
+	, "36": "jk1143"
+# NHKラジオ第1
+	, "49": "jk594"
+	# NHKラジオ第2
+	, "195": "jk693"
+	# ラジオnikkei
+	, "218": "jk3925"
+# inter fm
+	, "180": "jk761"
+# tokyo fm
+	, "162": "jk800"
+# tbs
+	, "53": "jk954"
+	# 文化放送
+	, "41": "jk1134"
+# ニッポン
+	, "30": "jk1242"
+# bayfm
+	, "166": "jk780"
+# nack5
+	, "188": "jk795"
+# ヨコハマ
+	, "190": "jk847"
+# ラジオ日本
+	, "191": "jk1422"
+# zip-fm
+	, "184": "jk778"
+# fm aichi
+	, "186": "jk807"
+# 中部日本放送でラジオ放送を開始 -> cbcラジオ
+	, "183": "jk1053"
+# 東海
+	, "139": "jk1332"
+# radio cube fm三重
+	, "185": "jk789"
+# 朝日放送 == ABCラジオ
+	, "38": "jk1008"
+# 毎日放送 == MBSラジオ
+	, "134": "jk1179"
+# 大阪
+	, "35": "jk1314"
+# ラジオ関西
+	, "133": "jk558"
+	# NHKBS-1
+	, "9": "jk101"
+	# OK: , "71": "jk141"
+	# BSジャパン
+	, "15": "jk171"
+	# スター
+	, "217": "jk200", "219": "jk201", "214": "jk202"
+	# twellv
+	, "129": "jk222"
+	# 放送大学 bs or cs?: 放送大学CSテレビ
+	, "158": "jk231"
+	# BSスカパー!
+	, "196": "jk241"
+	# 日本映画専門チャンネル
+	, "40": "jk255"
+
+	,
+'3': 'jk8',
+'4': 'jk4',
+'5': 'jk6',
+'6': 'jk5',
+'7': 'jk7',
+'8': 'jk11',
+'13': 'jk12',
+'14': 'jk10',
+'16': 'jk161',
+'17': 'jk181',
+'18': 'jk151',
+'19': 'jk9',
+'66': 'jk1143',
+'71': 'jk141',
+'76': 'jk193',
+'83': 'jk1431',
+'97': 'jk192',
+'106': 'jk825',
+'128': 'jk211',
+'138': 'jk1413',
+'163': 'jk256',
+'197': 'jk236',
+'179': 'jk103',
+'204': 'jk191',
+'212': 'jk258',
+}

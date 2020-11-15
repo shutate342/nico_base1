@@ -44,6 +44,10 @@ class _ErrProgram:
 		self.error= debug.pop("e")
 		self.bs= debug.pop("bs")
 
+	@staticmethod
+	def ofErr(e, bs, msg):
+		return _ErrProgram(locals())
+
 	def __repr__(self):
 		return f'<_ErrProgram({ self.error }) { list(self.debug.values()) }>'
 
@@ -58,13 +62,22 @@ _ifNone= lambda it: lambda default: default if it is None else it
 
 class _Program:
 
-	def __init__(self, chName, startDT, min, count= None, subtitle= None, **kwargs):
+	@staticmethod
+	def _fromDumpD(startTT, **kwargs):
+		return _Program(startDT= dt(*startTT), **kwargs)
+
+	def _ProgramCtor(
+		self, chName, startDT, min, count= None, subtitle= None
+		, _syChID= None, _HTMLID= None
+		, **kwargs
+	):
 		del kwargs
 		getCount= _ifNone(count)
 		getSubtitle= _ifNone(subtitle)
 		del count, subtitle
 		self.__dict__.update(locals())
 		self.__dict__.pop("self")
+	__init__= _ProgramCtor
 
 	def __repr__(self):
 		return f"<_Program({ str(self.startDT) }, { self.chName })>"
@@ -98,8 +111,11 @@ class _Program:
 				e for e in bs.find("td", _class("subtitle")).children
 				if isinstance(e, str)
 			)
+			_syChID= bs.select("a.pidlink")[0]["href"].split("=", 1)[-1].split("#", 1)[0]
+			_HTMLID= bs.get("id")
 			return _Program(**locals())
 		except Exception as e:
+			import sys; print(f"[_Program] { e }", file= sys.stderr)
 			return _ErrProgram(locals())
 
 def bs2EitherProgs(parsed: bs4.BeautifulSoup) -> dict:
@@ -252,4 +268,32 @@ def groupby(f, ite):
 	return ps
 
 # class TVBroadcastTable:
+
+
+DBURL= "http://cal.syoboi.jp/db.php"
+
+
+def lookupT(tid) -> str:
+	"""
+	tid: title id in cal.syoboi.jp
+	return (url of tid's title)
+	"""
+	return (
+		f'{ DBURL }?Command=TitleLookup'
+		f'&TID={ tid }&Fields=Title'
+	)
+
+def lookupP(tid, startDT= dt(2009,11,20), endDT= None, lastUpdateDT= None) -> str:
+	"""
+	tid: title id in cal.syoboi.jp like "2288"
+	endDT: default: datetime.now()
+	return (url of programs)
+	"""
+	return (
+		f'{ DBURL }?Command=ProgLookup'
+		f'&Range={ startDT.strftime("%Y%m%d_%H%M%S") }'
+		f'-{ (endDT or dt.now()).strftime("%Y%m%d_%H%M%S") }'
+		f'{ lastUpdateDT and "&LastUpdate="+ lastUpdateDT.strftime("%Y%m%d_%H%M%S")+ "-" or "" }'
+		f'&JOIN=SubTitles&TID={ tid }'
+	)
 

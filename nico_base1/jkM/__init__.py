@@ -142,7 +142,6 @@ class CmtsIter:
 			)
 
 		def get():
-			DAY= (60* 60* 24)
 			now= int( _prevAM4(dt.fromtimestamp(end_ts)).timestamp() )+ 3
 			end= end_ts
 			enumerator= this._enumeratorOf(
@@ -157,14 +156,25 @@ class CmtsIter:
 			while start_ts< now:
 				log_f(f"[main] over AM4")
 				yield from go()
-				end= now; now-= DAY
+				end= now; now= int( (dt.fromtimestamp(now)- td(1)).timestamp() )
 			now= start_ts; yield from go()
 
 		_serialize= _vposSerializer(dt.fromtimestamp(start_ts))
 		
 		def _get1Day(start_ts, end_ts, flvInfo):
-			import random
-			wbkey= self.getwaybackkey(flvInfo["thread_id"])
+			log_f(f"[main] { dt.fromtimestamp(start_ts) } -- { dt.fromtimestamp(end_ts) }")
+			while 1:
+				try:
+					wbkey= self.getwaybackkey(flvInfo["thread_id"])
+					break
+				except KeyError:
+					log_f(
+						f"[main] '{flvInfo.get('error')}', probably in overAM4.\n"
+						f"[main] Add: start_ts({dt.fromtimestamp(start_ts)})+ 1[sec]"
+					)
+					start_ts+= 1
+					flvInfo= self.getflv2(jkCh, start_ts, end_ts)
+					import time; time.sleep(_MAGIC(1)); continue
 			min_ts= end_ts
 			min_no= float("inf")
 			while start_ts<= min_ts:
@@ -183,7 +193,7 @@ class CmtsIter:
 						break
 					except Exception as e:
 						exc= e
-						log_f(f"[main] try again: {type(exc), exc}")
+					log_f(f"[main] try again: {type(exc).__name__, exc}")
 				else:
 					raise exc
 				elems= tuple(
@@ -197,7 +207,8 @@ class CmtsIter:
 					log_f(f"[main] break: Not found element")
 					break
 				if nomaxE is nominE:
-					log_f(f"[main] final: chat len({len(elems)})"); break
+					log_f(f"[main] final: chat len({len(elems)})")
+					break
 				crntMaxNo= int( nomaxE.attrib["no"] )
 				if (
 					min_no!= float("inf")
@@ -211,7 +222,8 @@ class CmtsIter:
 				)
 				yield from elems
 
-			log_f(f"[main] end {jkCh} {start_ts}")
+			log_f(f"[main] last min_no: {min_no}")
+			log_f(f"[main] end {jkCh}, st: { dt.fromtimestamp(start_ts)}")
 
 		this.__dict__.update(locals())
 

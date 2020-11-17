@@ -123,7 +123,9 @@ class CmtsIter:
 	def _enumeratorOf(countdown_from, overAM4):
 		if overAM4:
 			import itertools as itls
-			return lambda e, _g= itls.count(countdown_from, -1): str(next(_g))
+			return lambda e, _g= itls.count(countdown_from, -1): (
+				e.set("original_no", e.get("no")) or str(next(_g))
+			)
 		else:
 			return lambda e: e.get("no")
 

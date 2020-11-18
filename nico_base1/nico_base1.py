@@ -4,6 +4,7 @@
 # http.client.IncompleteRead
 
 import urllib.request as _req
+from   http import cookiejar
 
 def log_f(*args, **kwargs):
 	if _log_f_hook:
@@ -104,6 +105,12 @@ class Login:
 				raise ValueError("Failed to login", mail_tel, self)
 			return
 		raise RuntimeError("UnreachableCode")
+
+
+class CookieLogin(Login):
+	def __init__(self, cj: cookiejar.CookieJar):
+		self.cookieMgr= _req.HTTPCookieProcessor(cj)
+		self.director= _req.build_opener(self.cookieMgr, _UserAgentForger(), _RedirectCanceller())
 
 
 class _TimeoutMgr:

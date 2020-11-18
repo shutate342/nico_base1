@@ -210,6 +210,7 @@ class CmtsIter:
 					break
 				if nomaxE is nominE:
 					log_f(f"[main] final: chat len({len(elems)})")
+					yield nominE
 					break
 				crntMaxNo= int( nomaxE.attrib["no"] )
 				if (

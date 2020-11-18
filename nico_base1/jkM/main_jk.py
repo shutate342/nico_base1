@@ -179,6 +179,11 @@ def loginJK(mail_tel, password, timeout= object()) -> _JKAPI:
 	return _JKAPI(base.Login(mail_tel, password), **d)
 
 
+def cookieJ2JK(cj: base.cookiejar.CookieJar, timeout= object()) -> _JKAPI:
+	d= {} if type(timeout) is object else dict(timeout= timeout)
+	return _JKAPI( base.CookieLogin(cj), **d )
+
+
 def tryJKChID(prog: sy._Program) -> str:
 	"""
 	Get JKChID more strictly than jkM.jkTable.

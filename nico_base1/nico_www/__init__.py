@@ -61,6 +61,12 @@ def json2ChatElems(loadsArg):
 
 from   .. import nico_base1 as _base
 log_f= _base.log_f
+
+
+def loginCookieJ(cj: _base.cookiejar.CookieJar, timeout= (9, 40)):
+	return _delegLogin(_base.CookieLogin(cj), timeout)
+
+
 def login(mail_tel, password, timeout= (9, 40)):
 	"""
 	timeout: object
@@ -70,6 +76,10 @@ def login(mail_tel, password, timeout= (9, 40)):
 	"""
 	# d= dict(timeout= timeout) if not isinstance(timeout, object) else {}
 	login= _base.Login(mail_tel, password)
+	return _delegLogin(login, timeout)
+
+
+def _delegLogin(login, timeout):
 	_validate= lambda: (
 		not "user_session" in set(e.name for e in login.cookieMgr.cookiejar)
 		and _raise(RuntimeError, "LoggedOut")
@@ -134,6 +144,9 @@ class _Comments(_NicoWWW):
 	@staticmethod
 	def CHATS(bytesIO_):
 		return list(json2ChatElems(bytesIO_.read()))
+
+	def cmtsOf(self, url):
+		raise NotImplementedError
 
 	def _reqGo(self, req, parseBIO):
 		with self.openTO(req) as resp:

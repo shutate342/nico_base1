@@ -118,6 +118,7 @@ class CmtsIter:
 		return []
 
 	DEFAULT_COUNTDOWN= 1000000000
+	EXTRA_LOOKUP_SEC_FROM_AM4= 60* 30
 
 	@staticmethod
 	def _enumeratorOf(countdown_from, overAM4):
@@ -143,7 +144,7 @@ class CmtsIter:
 				"[main] LoggedOut or Expired or OutsideServicePeriod: bad flv2 info 'user_id'"
 			)
 
-		def get():
+		def _getAM4Chunks():
 			now= int( _prevAM4(dt.fromtimestamp(end_ts)).timestamp() )+ 3
 			end= end_ts
 			enumerator= this._enumeratorOf(
@@ -157,9 +158,14 @@ class CmtsIter:
 					if start_ts<= int(e.get("date")): yield e
 			while start_ts< now:
 				log_f(f"[main] over AM4")
-				yield from go()
-				end= now; now= int( (dt.fromtimestamp(now)- td(1)).timestamp() )
-			now= start_ts; yield from go()
+				yield go()
+				end= now+ this.EXTRA_LOOKUP_SEC_FROM_AM4
+				now= int( (dt.fromtimestamp(now)- td(1)).timestamp() )
+			now= start_ts; yield go()
+
+		def get():
+			for chunk in _getAM4Chunks():
+				yield from chunk
 
 		_serialize= _vposSerializer(dt.fromtimestamp(start_ts))
 		

@@ -50,6 +50,7 @@ def _vposSerializer(startDT):
 		diffdays= (_prevAM4(dt_)- baseAM4).days
 		# 4時をすぎているが vpos が更新されていないものに注意
 		if dt_.hour== 4 and VPOS2HOUR< vpos:
+			# log_f(elem.get("no"), dt_, f"vpos[sec]: { vpos// 100 }")
 			diffdays-= 1
 		it["vpos"]= str( VPOSDAY* diffdays+ vpos )
 		return it
@@ -89,6 +90,9 @@ class _JK(_TimeoutMgr):
 		)
 		with self.openTO(URL) as resp:
 			return resp.read().decode(_MAGIC("utf_8"))
+
+class GetFlvError(RuntimeError): pass
+class JKCommentError(RuntimeError): pass
 
 
 class CmtsIter:
@@ -140,49 +144,88 @@ class CmtsIter:
 		try:
 			user_id= flvInfo["user_id"]
 		except KeyError:
-			raise RuntimeError(
+			raise GetFlvError(
 				"[main] LoggedOut or Expired or OutsideServicePeriod: bad flv2 info 'user_id'"
 			)
 
 		def _getAM4Chunks():
-			now= int( _prevAM4(dt.fromtimestamp(end_ts)).timestamp() )+ 3
+			now= int( _prevAM4(dt.fromtimestamp(end_ts)).timestamp() )
 			end= end_ts
+			ORG_STDT= dt.fromtimestamp(start_ts)
+			# 4時を超えているのに昨日のスレッドを取得してしまうのを防ぐ
+			IS_NEAR_AM4= ORG_STDT.hour== 4 and ORG_STDT.minute== 0
 			enumerator= this._enumeratorOf(
 				this.DEFAULT_COUNTDOWN
-				, start_ts< now
+				, IS_NEAR_AM4 or start_ts<= now
 			)
-			def go():
-				inf= self.getflv2(jkCh, now, end)
-				for e in _get1Day(now, end, inf):
-					e.set("no", enumerator(e))
-					if start_ts<= int(e.get("date")): yield e
-			while start_ts< now:
-				log_f(f"[main] over AM4")
-				yield go()
-				end= now+ this.EXTRA_LOOKUP_SEC_FROM_AM4
-				now= int( (dt.fromtimestamp(now)- td(1)).timestamp() )
-			now= start_ts; yield go()
+			def go(e):
+				e.set("no", enumerator(e))
+				date= int(e.get("date"))
+				return start_ts<= date and date<= end_ts
+			flvInfo= {}
+			if IS_NEAR_AM4 or start_ts<= now:
+				while 1:
+					log_f(f"[main] near AM4")
+					log_f(f"[main] { dt.fromtimestamp(now) } -- { dt.fromtimestamp(end) }")
+					flvInfo= _getAM4FlvInfo(now, end)
+					yield filter(go, _get1Day(now, end, flvInfo))
+					end= now+ this.EXTRA_LOOKUP_SEC_FROM_AM4
+					now= int( (dt.fromtimestamp(now)- td(1)).timestamp() )
+					if not start_ts<= now:
+						break
+			now= start_ts
+			lastFlvInfo= self.getflv2(jkCh, now, end)
+			# 最後に先ほどと同じスレッドを取得しなかったならば
+			if lastFlvInfo.get("start_time")!= flvInfo.get("start_time"):
+				log_f(f"[main] { dt.fromtimestamp(now) } -- { dt.fromtimestamp(end) }")
+				yield filter( go, _get1Day(now, end, lastFlvInfo) )
 
 		def get():
+			log_f(f"[main] start {jkCh}")
 			for chunk in _getAM4Chunks():
 				yield from chunk
+			log_f(f"[main] end   {jkCh}, st: { dt.fromtimestamp(start_ts)}")
 
 		_serialize= _vposSerializer(dt.fromtimestamp(start_ts))
+
+		def _getAM4FlvInfo(am4_ts, end_ts):
+			"""
+			必ずAM4 からの新しいスレッドを取得
+			"""
+			start_ts= am4_ts
+			log_f("[main] flvInfo: 4:30")
+			flvInfo= self.getflv2(jkCh, start_ts+ 60* 30, end_ts)
+			if flvInfo.get("error"):
+				import time; time.sleep(1)
+				log_f("[main] try again: flvInfo: 12:00")
+				flvInfo= self.getflv2(jkCh, start_ts+ 8* 60* 60, end_ts)
+			if flvInfo.get("error"):
+				import time; time.sleep(1)
+				log_f("[main] try again: flvInfo: 26:00")
+				flvInfo= self.getflv2(jkCh, start_ts+ 22* 60* 60, end_ts)
+			return flvInfo
+			# while 1:
+				# log_f(
+				# 	f"user_start: { dt.fromtimestamp(start_ts) }"
+				# 	f", thread_start: { flvInfo.get('start_time') and dt.fromtimestamp(int(flvInfo['start_time'])) }"
+				# 	f", flvInfo: { flvInfo }"
+				# )
+				# else:
+				# 	diff_sec= int(flvInfo["start_time"])- start_ts
+				# 	diff_sec= diff_sec if diff_sec>= 0 else -diff_sec
+				# 	# if flv info is not yesterday thread's flv info, start to get comments
+				# 	if diff_sec< 60:
+				# 		return _get1Day(start_ts, end_ts, flvInfo)
+				# 	log_f("[main] try again: Got yesterday thread.")
+				# 	start_ts+= 1
+				# import time; time.sleep(2)
 		
 		def _get1Day(start_ts, end_ts, flvInfo):
-			log_f(f"[main] { dt.fromtimestamp(start_ts) } -- { dt.fromtimestamp(end_ts) }")
-			while 1:
-				try:
-					wbkey= self.getwaybackkey(flvInfo["thread_id"])
-					break
-				except KeyError:
-					log_f(
-						f"[main] '{flvInfo.get('error')}', probably in overAM4.\n"
-						f"[main] Add: start_ts({dt.fromtimestamp(start_ts)})+ 1[sec]"
-					)
-					start_ts+= 1
-					flvInfo= self.getflv2(jkCh, start_ts, end_ts)
-					import time; time.sleep(_MAGIC(1)); continue
+			if flvInfo.get('error'):
+				raise GetFlvError(
+					"[main] LoggedOut or Expired or OutsideServicePeriod: bad flv2 info"
+				)
+			wbkey= self.getwaybackkey(flvInfo["thread_id"])
 			min_ts= end_ts
 			min_no= float("inf")
 			while start_ts<= min_ts:
@@ -223,7 +266,7 @@ class CmtsIter:
 					min_no!= float("inf")
 					and crntMaxNo+ 1!= min_no
 				):
-					raise RuntimeError(f'[main] TruncatedComments: getmax={crntMaxNo}, crntmin={min_no}')
+					raise JKCommentError(f'[main] TruncatedComments: getmax={crntMaxNo}, crntmin={min_no}')
 				min_no= int(nominE.attrib["no"])
 				min_ts= (
 					# min( int(e.attrib["date"]) for e in elems )
@@ -232,7 +275,6 @@ class CmtsIter:
 				yield from elems
 
 			log_f(f"[main] last min_no: {min_no}")
-			log_f(f"[main] end {jkCh}, st: { dt.fromtimestamp(start_ts)}")
 
 		this.__dict__.update(locals())
 

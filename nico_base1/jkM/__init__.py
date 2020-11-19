@@ -134,6 +134,26 @@ class CmtsIter:
 		else:
 			return lambda e: e.get("no")
 
+	def getAM4FlvInfo(self, am4_ts, end_ts):
+		"""
+		必ずAM4 からの新しいスレッドを取得
+		あてずっぽうメンテ対策:
+			4時から 24h 以内の様々な時間から getflv を試みる
+		"""
+		jk= self.self; start_ts= am4_ts; jkCh= self.jkCh
+		log_f("[main] flvInfo: 4:30")
+		flvInfo= jk.getflv2(jkCh, start_ts+ 60* 30, end_ts)
+		if flvInfo.get("error"):
+			import time; time.sleep(1)
+			log_f("[main] try again: flvInfo: 12:00")
+			flvInfo= jk.getflv2(jkCh, start_ts+ 8* 60* 60, end_ts)
+		if flvInfo.get("error"):
+			import time; time.sleep(1)
+			log_f("[main] try again: flvInfo: 26:00")
+			flvInfo= jk.getflv2(jkCh, start_ts+ 22* 60* 60, end_ts)
+		return flvInfo
+		
+
 	def __init__(this, self: _JK, jkCh: str, start_ts: int, end_ts: int):
 		"""
 		jkCh: channel like 'jk1'
@@ -167,7 +187,7 @@ class CmtsIter:
 				while 1:
 					log_f(f"[main] near AM4")
 					log_f(f"[main] { dt.fromtimestamp(now) } -- { dt.fromtimestamp(end) }")
-					flvInfo= _getAM4FlvInfo(now, end)
+					flvInfo= this.getAM4FlvInfo(now, end)
 					yield filter(go, _get1Day(now, end, flvInfo))
 					end= now+ this.EXTRA_LOOKUP_SEC_FROM_AM4
 					now= int( (dt.fromtimestamp(now)- td(1)).timestamp() )
@@ -188,38 +208,6 @@ class CmtsIter:
 
 		_serialize= _vposSerializer(dt.fromtimestamp(start_ts))
 
-		def _getAM4FlvInfo(am4_ts, end_ts):
-			"""
-			必ずAM4 からの新しいスレッドを取得
-			"""
-			start_ts= am4_ts
-			log_f("[main] flvInfo: 4:30")
-			flvInfo= self.getflv2(jkCh, start_ts+ 60* 30, end_ts)
-			if flvInfo.get("error"):
-				import time; time.sleep(1)
-				log_f("[main] try again: flvInfo: 12:00")
-				flvInfo= self.getflv2(jkCh, start_ts+ 8* 60* 60, end_ts)
-			if flvInfo.get("error"):
-				import time; time.sleep(1)
-				log_f("[main] try again: flvInfo: 26:00")
-				flvInfo= self.getflv2(jkCh, start_ts+ 22* 60* 60, end_ts)
-			return flvInfo
-			# while 1:
-				# log_f(
-				# 	f"user_start: { dt.fromtimestamp(start_ts) }"
-				# 	f", thread_start: { flvInfo.get('start_time') and dt.fromtimestamp(int(flvInfo['start_time'])) }"
-				# 	f", flvInfo: { flvInfo }"
-				# )
-				# else:
-				# 	diff_sec= int(flvInfo["start_time"])- start_ts
-				# 	diff_sec= diff_sec if diff_sec>= 0 else -diff_sec
-				# 	# if flv info is not yesterday thread's flv info, start to get comments
-				# 	if diff_sec< 60:
-				# 		return _get1Day(start_ts, end_ts, flvInfo)
-				# 	log_f("[main] try again: Got yesterday thread.")
-				# 	start_ts+= 1
-				# import time; time.sleep(2)
-		
 		def _get1Day(start_ts, end_ts, flvInfo):
 			if flvInfo.get('error'):
 				raise GetFlvError(

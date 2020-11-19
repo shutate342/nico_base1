@@ -152,7 +152,7 @@ class CmtsIter:
 			log_f("[main] try again: flvInfo: 26:00")
 			flvInfo= jk.getflv2(jkCh, start_ts+ 22* 60* 60, end_ts)
 		return flvInfo
-		
+
 
 	def __init__(this, self: _JK, jkCh: str, start_ts: int, end_ts: int):
 		"""

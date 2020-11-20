@@ -107,15 +107,10 @@ class SyoboiCmts:
 
 		elemMapper: function(e: jkM.ET.Element) -> jkM.ET.Element
 		"""
-		dst= fullpath
-		if os.path.exists(dst):
-			raise FileExistsError(dst)
-		with open(dst, "wb") as f:
-			(sink or _Sink.of(os.linesep.encode("utf_8"), "utf_8"))(
-				f
-				, map(elemMapper or shiftFWer( jkM.vposdiffAt(self.prog.startDT) ), self.server)
-				, self.server.epilogues
-			)
+		(sink or _Sink.of(os.linesep.encode("utf_8"), "utf_8")).bindPath(fullpath)(
+			map(elemMapper or shiftFWer( jkM.vposdiffAt(self.prog.startDT) ), self.server)
+			, self.server.epilogues
+		)
 
 	def save(self, directory, *args, **kwargs) -> type(None):
 		"""

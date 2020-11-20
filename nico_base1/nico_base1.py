@@ -115,7 +115,9 @@ class CookieLogin(Login):
 
 class _TimeoutMgr:
 
-	def __init__(self, login, timeout= (9, 20), **kwargs):
+	def __init__(self, login, timeout= (9, 20)
+		, *, retryTO= 3, retryIntervalSec= 2, **kwargs
+	):
 		"timeout: (connect, read)"
 		try:
 			connectTimeout, readTimeout= timeout
@@ -130,22 +132,34 @@ class _TimeoutMgr:
 
 	def openTO(self, openarg):
 		"Time Out"
-		it= _mapReadTimeout(
-			self.open(openarg, timeout= self.connectTimeout)
-			, self.readTimeout
-		)
-		return it
+		for _ in range(self.retryTO):
+			try:
+				it= _mapReadTimeout(
+					self.open(openarg, timeout= self.connectTimeout)
+					, self.readTimeout
+				)
+				return it
+			except OSError as e:
+				log_f(f"[openTO] try again: { type(e).__name__ } {e}")
+				exc= e
+				import time; time.sleep(self.retryIntervalSec)
+		raise exc
 
 	simpleop= openTO
 
 	def logout(self) -> type(None):
 		URL= "https://account.nicovideo.jp/logout"
-		try:
-			self.open(URL).close()
-		except Exception as e:
-			if getattr(e, "code", -1)== 303:
-				return
-			raise e
+		for _ in range(self.retryTO):
+			try:
+				self.open(URL).close()
+				break
+			except OSError as e:
+				if getattr(e, "code", -1)== 303:
+					return
+				exc= e
+				import time; time.sleep(self.retryIntervalSec)
+		else:
+			raise exc
 		raise RuntimeError("APIChanged")
 
 	def __enter__(self):

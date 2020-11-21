@@ -290,3 +290,7 @@ syChIDTable= {
 '204': 'jk191',
 '212': 'jk258',
 }
+
+# alias
+syChID2JKMap= syChIDTable
+

@@ -1,5 +1,7 @@
 # -*- coding: cp932 -*-
 """
+Get JiKkyo Comment.
+
 {'thread': '1496775611', 'no': '8', 'vpos': '5873500', 'date': '1496834336', 'deleted': '2', 'anonymity': '1'}
 """
 
@@ -102,6 +104,24 @@ class CmtsIter:
 	vpos は順番どおりではない。コメント送信時間のずれが加味されている？
 
 	vpos は date よりも早まっている
+
+	以上古いメモ
+	以下重要
+
+	.生データは4時をまたぐと vpos が 0 にリセットされるが
+		このクラスは4時をまたぐごとに日付分 vpos に加算し
+		あたかも開始時刻から vpos が連続しているように要素を返す
+
+	.4時をまたいだ後もまれにそのまま古いスレッドから投稿されるコメが存在する
+		経験的に4時から数分間存在すると考えられる
+		この4時から余裕をもってコメントを探す期間 (秒数)は
+		変数 'EXTRA_LOOKUP_SEC_FROM_AM4' で調節する
+
+	.このクラスは 1回でも 4時をまたぐと
+		もっとも新しい時間に投稿されたコメントから順に
+		変数 'DEFAULT_COUNTDOWN' からカウントダウンしながら属性 'no' を書き換える
+		もとの 'no' は 'original_no' 属性として保持する
+		-> この挙動を無効にするには 変数 'DEFAULT_COUNTDOWN' に None を代入する
 	"""
 
 	def __iter__(self):
@@ -126,7 +146,7 @@ class CmtsIter:
 
 	@staticmethod
 	def _enumeratorOf(countdown_from, overAM4):
-		if overAM4:
+		if overAM4 and isinstance(countdown_from, int):
 			import itertools as itls
 			return lambda e, _g= itls.count(countdown_from, -1): (
 				e.set("original_no", e.get("no")) or str(next(_g))
@@ -139,6 +159,18 @@ class CmtsIter:
 		必ずAM4 からの新しいスレッドを取得
 		あてずっぽうメンテ対策:
 			4時から 24h 以内の様々な時間から getflv を試みる
+
+		より確実に 例外を出さずにスレッド情報を取得したければ
+		このメソッドをオーバーライドして工夫してください
+
+		わかりにくい提案:
+			長い期間のコメントを取得する際
+			CmtsIter を普通にイテレートするだけでは
+			1回どこかで例外が発生しただけでコメの取得が止まってしまいますが
+			_getAM4Chunks を使って 1日分のchunk ごとのイテレートを例外処理すれば
+			発生した 1日のみで 被害を抑え、コメの取得を続行できます
+
+			もしくは取得期間を小分けして保存しましょう
 		"""
 		jk= self.self; start_ts= am4_ts; jkCh= self.jkCh
 		log_f("[main] flvInfo: 4:30")
@@ -427,4 +459,7 @@ jkTable= dict(
 	910 =SOLiVE24
  
 """.split("\n") if s and not s.isspace() )
+
+# alias
+chName2JKMap= jkTable
 

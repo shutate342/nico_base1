@@ -3,6 +3,22 @@
 * 簡単でインタラクティブにも使えるニコニコ関連（予定）のコメント取得API（非公式）
 * 過剰にリクエストを送ってサーバーに負荷をかけることの無いようにしてください。
 
+* 最近の更新
+  * より厳密に4時をまたぐニコ実コメントを取得
+  * しょぼいカレンダー データベース ttp://cal.syoboi.jp/db.php に 
+    ちょっとだけ楽にアクセスできる手段を複数追加
+  * http.cookiejar.CookieJar からログイン可
+    * main_jk.cookieJ2JK
+    * nico_www.loginCookieJ
+
+```python
+# 私の環境ではこれ使えました
+# https://github.com/borisbabic/browser_cookie3
+import browser_cookie3 as bc3
+cj= bc3.chrome()
+from nico_base1 import nico_www
+nicoweb= nico_www.loginCookieJ(cj)
+```
 
 # Features
 
@@ -13,8 +29,7 @@
 
 * ニコニコ動画
   * URL などからコメントを取得、日付指定も可能です。下の Usage をご覧ください。
-  * 割と取得に時間がかかる(動画時間に比例)、タイムアウトエラーが少し発生することに注意しましょう。
-  * 気が向いたらチャンネルのリンク抽出とかも追加するかも。
+  * 割と取得に時間がかかる(動画時間に比例)、タイムアウトエラーが少し発生しやすいかもしれません。
 
 _要追加_
 

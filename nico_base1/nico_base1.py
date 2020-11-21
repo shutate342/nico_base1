@@ -130,22 +130,31 @@ class _TimeoutMgr:
 		self.__dict__= kwargs
 		del self.self, self.kwargs
 
-	def openTO(self, openarg):
+	def openTO(self, openarg, opener= None):
 		"Time Out"
 		for _ in range(self.retryTO):
 			try:
+				it= (opener or self.open)(openarg, timeout= self.connectTimeout)
 				it= _mapReadTimeout(
-					self.open(openarg, timeout= self.connectTimeout)
+					it
 					, self.readTimeout
 				)
 				return it
 			except OSError as e:
+				try: it.close()
+				except: pass
+				from urllib.error import HTTPError
+				if (
+					isinstance(e, HTTPError) and not e.code in (408, )
+					and e.code in range(300, 600)
+				):
+					raise e
 				log_f(f"[openTO] try again: { type(e).__name__ } {e}")
 				exc= e
 				import time; time.sleep(self.retryIntervalSec)
 		raise exc
 
-	simpleop= openTO
+	simpleop= lambda self, openarg: self.openTO(openarg, _req.urlopen)
 
 	def logout(self) -> type(None):
 		URL= "https://account.nicovideo.jp/logout"

@@ -27,13 +27,18 @@ import bs4
 import re
 from   datetime import timedelta as td, datetime as dt
 import urllib.request as _req
+import functools as _ftls
+
+from   . import nico_base1 as _base
+_OPENER= _base._TimeoutMgr(_base.CookieLogin(_base.cookiejar.CookieJar()))
+
 
 def _class(v):
 	return {"class": v}
 
 _REG_START= re.compile(r"(\d{4})-(\d+)-(\d+)[^\d]+(\d+):(\d+)")
+_REG_URL_TID= re.compile(r"/tid/(\d+)")
 
-_DEFAULT_TIMEOUT= 20
 
 class _ErrProgramValue: pass
 ERR= _ErrProgramValue()
@@ -60,11 +65,14 @@ class _ErrProgram:
 
 _ifNone= lambda it: lambda default: default if it is None else it
 
+
 class _Program:
 
-	@staticmethod
-	def _fromDumpD(startTT, **kwargs):
-		return _Program(startDT= dt(*startTT), **kwargs)
+	def getDumpable(prog):
+		d= prog.__dict__.copy()
+		d["count"]= d.pop("getCount")(None); d["subtitle"]= d.pop("getSubtitle")(None)
+		d["startTT"]= d.pop("startDT").timetuple()[:6]
+		return d
 
 	def _ProgramCtor(
 		self, chName, startDT, min, count= None, subtitle= None
@@ -115,10 +123,16 @@ class _Program:
 			_HTMLID= bs.get("id")
 			return _Program(**locals())
 		except Exception as e:
-			# import sys; print(f"[_Program] { e }", file= sys.stderr)
 			return _ErrProgram(locals())
 
-def bs2EitherProgs(parsed: bs4.BeautifulSoup) -> dict:
+def fromDumpArgs(startTT, **kwargs) -> _Program:
+	"""
+	Construct _Program from '_Program.getDumpable' dict
+	"""
+	return _Program(startDT= dt(*startTT), **kwargs)
+
+
+def bs2EitherProgs(parsed: bs4.BeautifulSoup, pastonly= True) -> dict:
 	"""
 	ret["rights"] -> [_Program]
 	ret["lefts"] -> [_ErrProgram]
@@ -126,7 +140,7 @@ def bs2EitherProgs(parsed: bs4.BeautifulSoup) -> dict:
 	try:
 		# tbody= parsed.select("table.progs > tbody")[0]
 		# programs= tbody.find_all(recursive= False)
-		programs= parsed.select("table.progs")[0].select("tr.past")
+		programs= parsed.select("table.progs")[0].select("tr.past" if pastonly else "table > tr")
 		it= groupby(type, map(_Program.of, programs))
 		it["rights"]= it.pop(_Program, [])
 		it["lefts"]= it.pop(_ErrProgram, [])
@@ -140,14 +154,15 @@ def _formatProgramsURL(request):
 	if it.host!= 'cal.syoboi.jp':
 		raise ValueError(f"InvalidHost: '{it.host}', expected 'cal.syoboi.jp'")
 	try:
-		tid= re.match(r"/tid/(\d+)", it.selector).group(1)
+		tid= _REG_URL_TID.search(it.selector).group(1)
 	except Exception as e:
 		raise ValueError(f"InvalidURLPath: '{ it.selector }', expected like '/tid/0001'")
 
 	return f"https://cal.syoboi.jp/tid/{ tid }/time"
 
 
-def parse(url_or_titleObj, assertNotEmpty= True) -> [_Program]:
+@_ftls.lru_cache(1)
+def parse( url_or_titleObj, assertNotEmpty= True, pastonly= True) -> [_Program]:
 	"""
 	cal.syoboi.jp のサイトから見たいタイトルを検索します。
 	すると タイトルの候補画面 or タイトル画面そのものに移動します。
@@ -174,7 +189,7 @@ def parse(url_or_titleObj, assertNotEmpty= True) -> [_Program]:
 		except Exception as parseErr:
 			try:
 				import os
-				with open(it, "rb") as f: return _b2Progs(f.read())
+				with open(it, "rb") as f: return bs2EitherProgs(toBS(f), pastonly)
 			except Exception as e:
 				raise RuntimeError(
 					"Failed to parse URL or local file"
@@ -185,19 +200,152 @@ def parse(url_or_titleObj, assertNotEmpty= True) -> [_Program]:
 			it if hasattr(it, "_syoboi_title")
 			else _formatProgramsURL(it)
 		)
-		with _req.urlopen(it, timeout= _DEFAULT_TIMEOUT) as resp:
-			return _b2Progs(resp.read())
+		with _OPENER.simpleop(it) as resp:
+			return bs2EitherProgs(toBS(resp), pastonly)
 
 	it= go()
+	if it["lefts"]:
+		_base.log_f('[cal_syoboi] ParseError num: {len(it["lefts"])}')
+	it= it["rights"]
 	if assertNotEmpty and not it:
 		raise AssertionError(
 			"NotFoundPrograms [sy.parse]: APIChanged or InvalidContentPath"
 		)
 	return it
 
+toBS= lambda o: bs4.BeautifulSoup(o, "html.parser")
 
-def _b2Progs(bytes_):
-	return bs2EitherProgs(bs4.BeautifulSoup(bytes_, "html.parser"))["rights"]
+
+_chID2NameMap= dict()
+def chID2Name(chid):
+	if not _chID2NameMap:
+		with _OPENER.openTO(f"{ DBURL }?Command=ChLookup") as resp:
+			_chID2NameMap.update({
+				e.find("chid").text: e.find("chname").text
+				for e in bs4.BeautifulSoup(resp, "html.parser").findAll("chitem")
+			})
+	return _chID2NameMap[chid]
+
+
+class TitleID(str):
+	"""
+	title id in cal.syoboi.jp like "2288"
+	This class uses 'cal.syoboi.jp' database URL (cal_syoboi.DBURL).
+	"""
+
+	def __new__(cls, cal_syoboi_title_identifier: object):
+		"""
+		cal_syoboi_title_identifier
+			2288 or "2288" or "http://cal.syoboi.jp/tid/2288"
+		"""
+		id= src= cal_syoboi_title_identifier
+		if isinstance(id, TitleID):
+			return id
+		try:
+			id= str(int(id))
+		except:
+			if isinstance(id, _req.Request):
+				try:
+					id= _REG_URL_TID.search(_formatProgramsURL(id)).group(1)
+				except Exception as e:
+					raise ValueError(f"[TitleID] ParseError: '{id.full_url}'", e)
+			else:
+				try:
+					id= _REG_URL_TID.search(id).group(1)
+				except AttributeError:
+					raise ValueError(f"[TitleID] NotFoundTID: '{id}'")
+				except Exception as e:
+					raise ValueError(f"[TitleID] ParseError: '{id}'", e)
+		it= str.__new__(TitleID, id)
+		# setattr(it, "src", src)
+		return it
+
+	def __repr__(self):
+		return f"TitleID('{ self }')"
+
+
+	@_ftls.lru_cache()
+	def lookupT(tid):
+		"Function 'fetchTID2NameMap' can get many title names efficiently."
+		it= TitleID.fetchTID2NameMap([tid])[tid]
+		import time; time.sleep(1)
+		return it
+
+
+	@staticmethod
+	def fetchTID2NameMap(cal_syoboi_title_identifiers: [object]) -> dict:
+		"""
+		cal_syoboi_title_identifiers
+			list of title IDs in cal.syoboi.jp like
+			2288 or "2288" or "http://cal.syoboi.jp/tid/2288"
+		return dictobj
+			dictobj[TITLE_ID]== TITLE_NAME
+
+		***Please check***
+			https://sites.google.com/site/syobocal/spec/db-php
+		"""
+		TIDs= {e: e for e in map(TitleID, cal_syoboi_title_identifiers) }
+		import urllib.parse as p
+		with _OPENER.openTO(
+			f'{ DBURL }?Command=TitleLookup'
+			f'&TID={ p.quote( ",".join(TIDs) ) }&Fields=Title'
+		) as resp:
+			return {
+				TIDs.get(e["id"]): e.find("title").text
+				for e in toBS(resp)("titleitem")
+			}
+
+
+	def lookupP(
+		tid, dtrange: (dt, dt)= None, lastUpdateDT: dt= None
+		, *, counts= [], chIDs= [], pastonly= True
+		, chID2Name= chID2Name
+	) -> dict:
+		"""
+		tid
+			title id in cal.syoboi.jp like "2288"
+		return
+			programs of this tid
+
+		ret["rights"] -> [_Program]
+		ret["lefts"] -> [_ErrProgram]
+
+		***Please check***
+			https://sites.google.com/site/syobocal/spec/db-php
+		"""
+		DTFMT= "%Y%m%d_%H%M%S"
+		fields= []
+		qs= {
+			"Command": "ProgLookup"
+			, "Range": (
+				dtrange and f'{ dtrange[0].strftime(DTFMT) }-{ dtrange[1].strftime(DTFMT) }'
+			)
+			, "LastUpdate": lastUpdateDT and f'{ lastUpdateDT.strftime(DTFMT) }-'
+			, "Count": ",".join(map(str, counts))
+			, "Fields":  ",".join(fields) 
+			,  "ChID": ",".join(map(str, chIDs)) 
+			, "JOIN": "SubTitles"
+			, "TID": tid
+		}
+		import urllib.parse as p
+		URL= f'{ DBURL }?{ p.urlencode([t for t in qs.items() if t[1]]) }'
+		with _OPENER.openTO(URL) as resp:
+			bs= toBS(resp)
+			code= int(getattr(bs.find("code"), "text", "-1"))
+			msg= getattr(bs.find('message'), "text", "(No MSG)")
+			if code in (400, ):
+				raise ValueError(dict(code= code, msg= msg, tid= tid, URL= URL))
+			items= map(_progitemConverter(chID2Name), bs("progitem"))
+			it= groupby(type, items)
+			now= dt.now()
+			it["rights"]= [
+				e for e in it.pop(_Program, [])
+				if not pastonly or e.startDT+ td(minutes= e.min)< now
+			]
+			it["lefts"]= it.pop(_ErrProgram, [])
+			it["respcode"]= code
+			it["respmsg"]= msg
+			return it
 
 
 class Title(_req.Request):
@@ -208,12 +356,27 @@ class Title(_req.Request):
 	__repr__= __str__
 
 	programs= property(parse)
+	titleID= property(TitleID)
 
 	@staticmethod
 	def _of(url, title= None):
 		it= Title(url)
 		if title: it._syoboi_title= title
 		return it
+
+	@staticmethod
+	def sOfSeason(quarter: str) -> tuple:
+		"example 2019: { '2019q1', '2019q2', '2019q3', '2019q4' }"
+		args= (r"\d+q[1-4]", quarter)
+		if not re.fullmatch(*args):
+			raise ValueError(*args)
+		with _OPENER.simpleop(
+			'https://cal.syoboi.jp/quarter/'+ quarter
+		) as resp:
+			return tuple(
+				Title._of('https://cal.syoboi.jp'+e['href'], e.text)
+				for e in toBS(resp).select('td>a.title')
+			)
 
 def search(title_query: str) -> [Title]:
 	"""
@@ -227,7 +390,6 @@ def search(title_query: str) -> [Title]:
 		f'https://cal.syoboi.jp/find?type=quick&sd=1&kw={ quote(s) }'
 		.replace("%20", "+")
 	)
-	b2bs4= lambda b: bs4.BeautifulSoup(b, "html.parser")
 	getTitles= lambda bs: (
 		next(e.parents).find("a")
 		for e in bs.select("div.findComment")
@@ -238,8 +400,8 @@ def search(title_query: str) -> [Title]:
 
 	url= go(title_query)
 	try:
-		with _req.urlopen(url, timeout= _DEFAULT_TIMEOUT) as resp:
-			bs= b2bs4(resp.read())
+		with _OPENER.simpleop(url) as resp:
+			bs= toBS(resp.read())
 	except Exception as e:
 		raise RuntimeError("通信エラーが発生しました", e)
 	if not "find?" in resp.url:
@@ -273,27 +435,43 @@ def groupby(f, ite):
 DBURL= "http://cal.syoboi.jp/db.php"
 
 
-def lookupT(tid) -> str:
+def searchChID(chNamePattern: str, methodName: str= "search") -> list:
 	"""
-	tid: title id in cal.syoboi.jp
-	return (url of tid's title)
+	Search channel ID in 'cal.syoboi.jp'.
+	methodName
+		fullmatch or match or search
+	return
+		matching dict results (pair of 'chName', 'syChID')
 	"""
-	return (
-		f'{ DBURL }?Command=TitleLookup'
-		f'&TID={ tid }&Fields=Title'
-	)
+	try: chID2Name("1")
+	except: pass
+	go= getattr(re.compile(chNamePattern), methodName)
+	return [
+		{"chName": name, "syChID": id}
+		for id, name in _chID2NameMap.items() if go(name)
+	]
 
-def lookupP(tid, startDT= dt(2009,11,20), endDT= None, lastUpdateDT= None) -> str:
-	"""
-	tid: title id in cal.syoboi.jp like "2288"
-	endDT: default: datetime.now()
-	return (url of programs)
-	"""
-	return (
-		f'{ DBURL }?Command=ProgLookup'
-		f'&Range={ startDT.strftime("%Y%m%d_%H%M%S") }'
-		f'-{ (endDT or dt.now()).strftime("%Y%m%d_%H%M%S") }'
-		f'{ lastUpdateDT and "&LastUpdate="+ lastUpdateDT.strftime("%Y%m%d_%H%M%S")+ "-" or "" }'
-		f'&JOIN=SubTitles&TID={ tid }'
-	)
+
+def _progitemConverter(chID2Name= chID2Name):
+	def progitem2EitherProg(parsed: bs4.element.Tag):
+		try:
+			e= bs= parsed
+			try:
+				count= int(e.find("count").text)
+			except:
+				count= None
+			_syChID= e.find("chid").text
+			chName= chID2Name(_syChID)
+			if not isinstance(chName, str):
+				raise TypeError("[progitem2EitherProg] chName:", type(chName))
+			startDT= dt.strptime(e.find("sttime").text.strip(), "%Y-%m-%d %H:%M:%S")
+			min= int((
+				dt.strptime(e.find("edtime").text.strip(), "%Y-%m-%d %H:%M:%S")
+				- startDT
+			).total_seconds())// 60
+			subtitle= e.find("stsubtitle").text.strip() or e.find("subtitle").text.strip()
+			return _Program(**locals())
+		except Exception as e:
+			return _ErrProgram.ofErr(e, bs, f"[progitem2EitherProg] {type(e).__name__}")
+	return progitem2EitherProg
 

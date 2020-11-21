@@ -1,4 +1,4 @@
-# -* coding: cp932 *-
+# -*- coding: cp932 -*-
 
 """
 # Get Comments From Site 'www.nicovideo.jp'

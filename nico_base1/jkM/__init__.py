@@ -1,4 +1,4 @@
-# -* coding: cp932 *-
+# -*- coding: cp932 -*-
 """
 {'thread': '1496775611', 'no': '8', 'vpos': '5873500', 'date': '1496834336', 'deleted': '2', 'anonymity': '1'}
 """

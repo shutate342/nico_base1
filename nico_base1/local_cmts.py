@@ -1,4 +1,4 @@
-# -* coding: cp932 *-
+# -*- coding: cp932 -*-
 
 import xml.etree.ElementTree as ET
 

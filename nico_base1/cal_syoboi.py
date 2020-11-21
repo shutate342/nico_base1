@@ -1,4 +1,4 @@
-# -* coding: cp932 *-
+# -*- coding: cp932 -*-
 """
 http://cal.syoboi.jp/mng?Action=ShowChList
 -> ShowChList

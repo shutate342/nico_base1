@@ -1,4 +1,4 @@
-# -* coding: cp932 *-
+# -*- coding: cp932 -*-
 
 # from urllib.request import Request, urlopen, HTTPRedirectHandler, build_opener
 # http.client.IncompleteRead
